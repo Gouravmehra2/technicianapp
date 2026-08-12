@@ -1,0 +1,55 @@
+name: technicianapp
+description: "Technician Flutter application."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.9
+  flutter_svg: ^2.3.0
+  get: ^4.7.3
+  persistent_bottom_nav_bar: ^6.2.1
+  country_code_picker: ^3.0.0
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.1.0
+  geolocator: ^14.0.2
+  geocoding: ^3.0.0
+  google_maps_flutter: ^2.17.1
+  carousel_slider: ^5.0.0
+  dotted_border: ^3.1.0
+  easy_date_timeline: ^2.0.9
+  image_picker: ^1.1.2
+  device_preview_plus: ^2.8.0
+  video_player: ^2.11.1
+  dio: ^5.8.0+1
+  pretty_dio_logger: ^1.4.0
+  shared_preferences: ^2.3.3
+  socket_io_client: ^2.0.3+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/inter_regular.ttf
+          weight: 400
+        - asset: assets/fonts/inter_medium.ttf
+          weight: 500
+        - asset: assets/fonts/inter_semi_bold.ttf
+          weight: 600
+        - asset: assets/fonts/inter_bold.ttf
+          weight: 700

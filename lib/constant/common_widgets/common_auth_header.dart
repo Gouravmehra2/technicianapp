@@ -17,89 +17,77 @@ class CommonAuthHeader extends StatelessWidget {
     this.child,
   });
 
-  static const double toolbarHeight = 56.0;
+  static const double toolbarHeight = 50.0;
   static const double horizontalPadding = 20.0;
   static const double backButtonSize = 44.0;
 
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-
     final topPadding = mediaQuery.padding.top;
     final bottomPadding = mediaQuery.padding.bottom;
+    final headerHeight = topPadding + toolbarHeight;
 
-    return SizedBox.expand(
-      child: Stack(
-        children: [
-          // ----------------------------------------------------------
-          // BACKGROUND IMAGE
-          // ----------------------------------------------------------
-          Positioned.fill(
-            child: Image.asset(
-              imagePath,
-              fit: BoxFit.cover,
-            ),
-          ),
+    return Stack(
+      children: [
+        // BACKGROUND IMAGE
+        Positioned.fill(
+          child: Image.asset(imagePath, fit: BoxFit.cover),
+        ),
 
-          // ----------------------------------------------------------
-          // TOP TOOLBAR
-          // ----------------------------------------------------------
-          if (showBackButton)
-            Positioned(
-              top: topPadding,
-              left: 0,
-              right: 0,
-              height: toolbarHeight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: horizontalPadding,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(50),
-                      onTap: onBackTap ?? () => Get.back(),
-                      child: Container(
-                        width: backButtonSize,
-                        height: backButtonSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColor.shadowGrey.withValues(
-                            alpha: 0.30,
+        // COLUMN: back button on top, scrollable content below
+        Column(
+          children: [
+            // Fixed header area — back button lives here
+            SizedBox(
+              height: headerHeight,
+              child: showBackButton
+                  ? Padding(
+                      padding: EdgeInsets.only(
+                        top: topPadding,
+                        left: horizontalPadding,
+                        right: horizontalPadding,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(50),
+                            onTap: onBackTap ?? () => Get.back(),
+                            child: Container(
+                              width: backButtonSize,
+                              height: backButtonSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColor.shadowGrey.withValues(alpha: 0.30),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.arrow_back_ios_rounded,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.arrow_back_ios_rounded,
-                          size: 20,
-                          color: Colors.white,
-                        ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
+                    )
+                  : const SizedBox.shrink(),
             ),
 
-          // ----------------------------------------------------------
-          // BOTTOM CONTENT
-          // ----------------------------------------------------------
-          if (child != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: bottomPadding,
+            // Scrollable content area — panel can never go above back button
+            if (child != null)
+              Expanded(
+                child: SingleChildScrollView(
+                  reverse: true,
+                  padding: EdgeInsets.only(bottom: bottomPadding),
+                  child: child!,
                 ),
-                child: child!,
               ),
-            ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -124,12 +112,12 @@ class AuthLayout extends StatelessWidget {
       ),
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        resizeToAvoidBottomInset: true,
+        // true so the Scaffold shrinks when keyboard appears,
+        // which lets the inner SingleChildScrollView scroll properly
+        // resizeToAvoidBottomInset: false,
         body: CommonAuthHeader(
           imagePath: imagePath,
-          child: body.paddingSymmetric(
-            horizontal: 10,
-          ),
+          child: body.paddingSymmetric(horizontal: 10),
         ),
       ),
     );

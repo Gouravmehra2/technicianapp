@@ -27,16 +27,17 @@ class LoginScreen extends StatelessWidget {
 }
 
 Widget loginPanel(LoginController controller) {
-  return Container(
-    decoration:  BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(30),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Form(
-        key: controller.formKey,
-        child: SingleChildScrollView(
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Form(
+          key: controller.formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [

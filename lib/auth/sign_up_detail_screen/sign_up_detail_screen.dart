@@ -72,8 +72,8 @@ class _SignUpDetailPanel extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // ── Profile image picker ───────────────────────────────────
-                _ProfileImagePicker(controller: controller),
-                const SizedBox(height: 20),
+                // _ProfileImagePicker(controller: controller),
+                // const SizedBox(height: 20),
 
                 // ── Name field ─────────────────────────────────────────────
                 CommonTextFormField(

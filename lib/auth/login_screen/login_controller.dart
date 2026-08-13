@@ -193,9 +193,9 @@ class LoginController extends GetxController {
       final token = data['token']?.toString() ?? '';
       final userData = UserModel.fromJson(data);
       await _authService.saveSession(authToken: token, userData: userData);
-      socketService.initialize();
-      socketService.joinTechnician(data['data']?['user']['_id']?.toString() ?? '');
-      socketService.connect();
+      socketService.connectAndJoin(
+        technicianId: data['data']?['user']['_id']?.toString(),
+      );
       _navigateAfterLogin(userData);
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'login_failed'.tr);
@@ -207,7 +207,7 @@ class LoginController extends GetxController {
   void _navigateAfterLogin(UserModel user) {
     if (user.isTechnicianApproved) {
       // Fully approved → home
-      Get.offAllNamed(AppRoutes.dashboardScreen);
+      Get.toNamed(AppRoutes.locationPermissionScreen);
     } else if (user.hasNotStartedOnboarding) {
       // Fresh account – docs never submitted → Step 1 overview
       Get.offAllNamed(AppRoutes.technicianDocOverviewScreen);

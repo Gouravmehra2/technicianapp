@@ -337,6 +337,12 @@ class AppPages {
       transition: Transition.rightToLeftWithFade,
     ),
     GetPage(
+      name: AppRoutes.technicianUnderReviewScreen,
+      page: () => const Step5UnderReviewScreen(),
+      binding: TechnicianOnboardingBinding(),
+      transition: Transition.rightToLeftWithFade,
+    ),
+    GetPage(
       name: AppRoutes.technicianAllSetScreen,
       page: () => const AllSetScreen(),
       transition: Transition.rightToLeftWithFade,

@@ -1,19 +1,54 @@
 import 'package:flutter/cupertino.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/location_service.dart';
 
 class SplashController extends GetxController {
   final _apiRepo = Get.find<ApiRepo>();
+  final RxString locationText = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchLocationIfGranted();
       Future.delayed(const Duration(seconds: 3), _navigate);
     });
+  }
+
+  Future<void> _fetchLocationIfGranted() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) return;
+
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      final p = placemarks.first;
+      final address = [
+        p.name,
+        p.subLocality,
+        p.locality,
+        p.administrativeArea,
+      ].where((s) => s != null && s.isNotEmpty).join(', ');
+
+      locationText.value = address;
+      LocationService.to.setLocation(
+        address: address,
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
+    } catch (_) {}
   }
 
   Future<void> _navigate() async {
@@ -50,12 +85,11 @@ class SplashController extends GetxController {
     if (auth.isTechnicianApproved) {
       // Fully approved → home screen
       Get.offAllNamed(AppRoutes.dashboardScreen);
-    } else if (auth.hasNotStartedOnboarding) {
-      // Fresh account – docs never submitted → Step 1 overview
-      Get.offAllNamed(AppRoutes.technicianDocOverviewScreen);
+    } else if (auth.isTechnicianPending || auth.isTechnicianRejected) {
+      // Docs already submitted — under review or some rejected → review/status page
+      Get.offAllNamed(AppRoutes.technicianUnderReviewScreen);
     } else {
-
-      // Docs submitted but pending / rejected → Step 4 review
+      // Fresh account – docs never submitted → Step 1 overview
       Get.offAllNamed(AppRoutes.technicianDocOverviewScreen);
     }
   }

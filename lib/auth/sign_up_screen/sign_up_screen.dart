@@ -36,8 +36,7 @@ Widget _signUpPanel(SignUpController controller) {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Form(
         key: controller.formKey,
-        child: SingleChildScrollView(
-          child: Column(
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 28),
@@ -200,7 +199,6 @@ Widget _signUpPanel(SignUpController controller) {
           ),
         ),
       ),
-    ),
   );
 }
 

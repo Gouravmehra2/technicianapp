@@ -45,6 +45,7 @@ class TechnicianOnboardingScreen
   Widget build(BuildContext context) {
     return Obx(() {
       final page = controller.currentPage.value;
+      final isUploading = controller.isUploadingDocs.value;
       final isReview = page == 9;
       // Page 0 = doc overview → no back button (can't go to a previous screen)
       final isOverview = page == 0;
@@ -53,20 +54,34 @@ class TechnicianOnboardingScreen
         appBar: isReview
             ? onboardingAppBar(_appBarTitles[page])
             : _buildAppBar(_appBarTitles[page], hideBack: isOverview),
-        body: PageView(
-          controller: controller.pageController,
-          physics: const NeverScrollableScrollPhysics(),
+        body: Stack(
           children: [
-            _DocOverviewPage(controller: controller),
-            _DrivingLicensePage(controller: controller),
-            _ResidentialPage(controller: controller),
-            _TaxInfoPage(controller: controller),
-            _CvPage(controller: controller),
-            _BackgroundPage(controller: controller),
-            _SkillsPage(controller: controller),
-            _ExperiencePage(controller: controller),
-            _BankPage(controller: controller),
-            _UnderReviewPage(),
+            PageView(
+              controller: controller.pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _DocOverviewPage(controller: controller),
+                _DrivingLicensePage(controller: controller),
+                _ResidentialPage(controller: controller),
+                _TaxInfoPage(controller: controller),
+                _CvPage(controller: controller),
+                _BackgroundPage(controller: controller),
+                _SkillsPage(controller: controller),
+                _ExperiencePage(controller: controller),
+                _BankPage(controller: controller),
+                _UnderReviewPage(),
+              ],
+            ),
+            if (isUploading)
+              AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
+              ),
           ],
         ),
       );
@@ -74,39 +89,46 @@ class TechnicianOnboardingScreen
   }
 
   AppBar _buildAppBar(String title, {bool hideBack = false}) => AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: hideBack
-            ? null
-            : GestureDetector(
-                onTap: controller.prevPage,
-                child: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                      color: Color(0xFFF0F0F0), shape: BoxShape.circle),
-                  child:
-                      const Icon(Icons.chevron_left, color: Colors.black87),
-                ),
-              ),
-        title: Text(title,
-            style:
-                AppTextStyle.titleLargeBold.copyWith(color: Colors.black87)),
-        centerTitle: true,
-        actions: [
-          GestureDetector(
-            onTap: () => Get.toNamed(AppRoutes.supportScreen),
+    backgroundColor: Colors.white,
+    elevation: 0,
+    automaticallyImplyLeading: false,
+    leading: hideBack
+        ? null
+        : GestureDetector(
+            onTap: controller.isUploadingDocs.value ? null : controller.prevPage,
             child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.all(8),
               decoration: const BoxDecoration(
-                  color: Color(0xFFF0F0F0), shape: BoxShape.circle),
-              child: const Icon(Icons.support_agent_outlined,
-                  color: Colors.black87, size: 20),
+                color: Color(0xFFF0F0F0),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.chevron_left, color: Colors.black87),
             ),
           ),
-        ],
-      );
+    title: Text(
+      title,
+      style: AppTextStyle.titleLargeBold.copyWith(color: Colors.black87),
+    ),
+    centerTitle: true,
+    actions: [
+      GestureDetector(
+        onTap: () => Get.toNamed(AppRoutes.supportScreen),
+        child: Container(
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.all(8),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF0F0F0),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.support_agent_outlined,
+            color: Colors.black87,
+            size: 20,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,14 +137,35 @@ class TechnicianOnboardingScreen
 
 class _DocOverviewPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _DocOverviewPage({required this.controller});
 
   static const _docs = [
-    {'key': 'driving_license', 'label': 'Driving License', 'icon': Icons.badge_outlined},
-    {'key': 'residential_proof', 'label': 'Residential Proof', 'icon': Icons.home_outlined},
-    {'key': 'tax_info', 'label': 'Tax Information', 'icon': Icons.receipt_long_outlined},
-    {'key': 'cv_resume', 'label': 'CV / Resume', 'icon': Icons.description_outlined},
-    {'key': 'background_check', 'label': 'Background Check', 'icon': Icons.security_outlined},
+    {
+      'key': 'driving_license',
+      'label': 'Driving License',
+      'icon': Icons.badge_outlined,
+    },
+    {
+      'key': 'residential_proof',
+      'label': 'Residential Proof',
+      'icon': Icons.home_outlined,
+    },
+    {
+      'key': 'tax_info',
+      'label': 'Tax Information',
+      'icon': Icons.receipt_long_outlined,
+    },
+    {
+      'key': 'cv_resume',
+      'label': 'CV / Resume',
+      'icon': Icons.description_outlined,
+    },
+    {
+      'key': 'background_check',
+      'label': 'Background Check',
+      'icon': Icons.security_outlined,
+    },
   ];
 
   @override
@@ -144,19 +187,26 @@ class _DocOverviewPage extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColor.brownAccentPrimary.withValues(alpha: 0.4)),
+                      color: AppColor.brownAccentPrimary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text('Complete your Verification',
-                          style: AppTextStyle.titleLargeBold
-                              .copyWith(color: AppColor.blackShade1, fontSize: 20)),
+                      Text(
+                        'Complete your Verification',
+                        style: AppTextStyle.titleLargeBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 20,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         '5 quick steps to get verified and start accepting jobs. These documents help verify your identity, eligibility, and payment details.',
-                        style: AppTextStyle.bodySmallRegular
-                            .copyWith(color: AppColor.coolGrayText, height: 1.5),
+                        style: AppTextStyle.bodySmallRegular.copyWith(
+                          color: AppColor.coolGrayText,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
@@ -166,8 +216,10 @@ class _DocOverviewPage extends StatelessWidget {
                   child: Text(
                     'Get ready with all your documents listed below\nEstimated Time to complete\n8-10 minutes',
                     textAlign: TextAlign.center,
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1, height: 1.6),
+                    style: AppTextStyle.bodyMediumMedium.copyWith(
+                      color: AppColor.blackShade1,
+                      height: 1.6,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -180,7 +232,9 @@ class _DocOverviewPage extends StatelessWidget {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
@@ -195,40 +249,50 @@ class _DocOverviewPage extends StatelessWidget {
                                 color: const Color(0xFFFFF3E0),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Icon(doc['icon'] as IconData,
-                                  color: AppColor.brownAccentPrimary, size: 22),
+                              child: Icon(
+                                doc['icon'] as IconData,
+                                color: AppColor.brownAccentPrimary,
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
-                              child: Text(doc['label'] as String,
-                                  style: AppTextStyle.titleSmallSemiBold.copyWith(
-                                      color: AppColor.blackShade1, fontSize: 16)),
+                              child: Text(
+                                doc['label'] as String,
+                                style: AppTextStyle.titleSmallSemiBold.copyWith(
+                                  color: AppColor.blackShade1,
+                                  fontSize: 16,
+                                ),
+                              ),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: done
                                     ? const Color(0xFFE8F5E9)
                                     : const Color(0xFFFFEBEE),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: done
-                                        ? Colors.green
-                                        : Colors.redAccent),
+                                  color: done ? Colors.green : Colors.redAccent,
+                                ),
                               ),
                               child: Text(
                                 done ? 'Complete' : 'Incomplete',
                                 style: AppTextStyle.labelSmallMedium.copyWith(
-                                    color: done
-                                        ? Colors.green
-                                        : Colors.redAccent),
+                                  color: done ? Colors.green : Colors.redAccent,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             // Lock icon — user cannot jump directly from overview
-                            const Icon(Icons.lock_outline,
-                                color: AppColor.coolGrayText, size: 20),
+                            const Icon(
+                              Icons.lock_outline,
+                              color: AppColor.coolGrayText,
+                              size: 20,
+                            ),
                           ],
                         ),
                       );
@@ -254,6 +318,7 @@ class _DocOverviewPage extends StatelessWidget {
 
 class _DrivingLicensePage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _DrivingLicensePage({required this.controller});
 
   @override
@@ -279,43 +344,44 @@ class _DrivingLicensePage extends StatelessWidget {
                 const SizedBox(height: 12),
                 const InfoCard(
                   title: 'Requirements:',
-                  body: 'Front and back must be clear, unexpired, and all four corners visible. Avoid glare and shadows.',
+                  body:
+                      'Front and back must be clear, unexpired, and all four corners visible. Avoid glare and shadows.',
                 ),
                 const SizedBox(height: 20),
-                Text('Upload Front',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload Front'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.drivingLicenseFront.value,
-                      onTap: () =>
-                          controller.pickAndSet(controller.drivingLicenseFront),
-                      onDelete: () =>
-                          controller.drivingLicenseFront.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.drivingLicenseFront.value,
+                    onTap: () =>
+                        controller.pickAndSet(controller.drivingLicenseFront),
+                    onDelete: () => controller.drivingLicenseFront.value = null,
+                  ),
+                ),
                 const SizedBox(height: 20),
-                Text('Upload Back',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload Back'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.drivingLicenseBack.value,
-                      onTap: () =>
-                          controller.pickAndSet(controller.drivingLicenseBack),
-                      onDelete: () =>
-                          controller.drivingLicenseBack.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.drivingLicenseBack.value,
+                    onTap: () =>
+                        controller.pickAndSet(controller.drivingLicenseBack),
+                    onDelete: () => controller.drivingLicenseBack.value = null,
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        _BottomButton(
+        Obx(() => _BottomButton(
           label: 'Next →',
-          onTap: () {
-            controller.markDocComplete('driving_license');
-            controller.nextPage();
-          },
-        ),
+          onTap: controller.canProceedDrivingLicense
+              ? () {
+                  controller.markDocComplete('driving_license');
+                  controller.nextPage();
+                }
+              : null,
+        )),
       ],
     );
   }
@@ -327,6 +393,7 @@ class _DrivingLicensePage extends StatelessWidget {
 
 class _ResidentialPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _ResidentialPage({required this.controller});
 
   @override
@@ -346,67 +413,91 @@ class _ResidentialPage extends StatelessWidget {
                 const StepHeaderCard(
                   stepLabel: 'Step 2 of 5',
                   title: 'Residential Proof',
-                  description: 'Upload a document to verify your current address.',
+                  description:
+                      'Upload a document to verify your current address.',
                 ),
                 const SizedBox(height: 12),
                 const InfoCard(
                   title: 'Requirements:',
-                  body: 'Document must be issued within the last 90 days and match your profile name and make sure that Address clearly visible.',
+                  body:
+                      'Document must be issued within the last 90 days and match your profile name and make sure that Address clearly visible.',
                 ),
                 const SizedBox(height: 16),
-                Text('ACCEPTED DOCUMENTS',
-                    style: AppTextStyle.labelSmallMedium
-                        .copyWith(color: AppColor.blackShade1, letterSpacing: 1)),
+                Text(
+                  'ACCEPTED DOCUMENTS',
+                  style: AppTextStyle.labelSmallMedium.copyWith(
+                    color: AppColor.blackShade1,
+                    letterSpacing: 1,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: ['Utility Bill', 'Internet Bill', 'Bank Statement', 'Lease Agreement']
-                      .map((label) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppColor.lightGreyColor),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.description_outlined,
+                  children:
+                      [
+                            'Utility Bill',
+                            'Internet Bill',
+                            'Bank Statement',
+                            'Lease Agreement',
+                          ]
+                          .map(
+                            (label) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColor.lightGreyColor,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.description_outlined,
                                     size: 14,
-                                    color: AppColor.brownAccentPrimary),
-                                const SizedBox(width: 4),
-                                Text(label,
+                                    color: AppColor.brownAccentPrimary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    label,
                                     style: AppTextStyle.bodySmallMedium
-                                        .copyWith(color: AppColor.blackShade1)),
-                              ],
+                                        .copyWith(color: AppColor.blackShade1),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ))
-                      .toList(),
+                          )
+                          .toList(),
                 ),
                 const SizedBox(height: 20),
-                Text('Upload Document',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload Document'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.residentialProof.value,
-                      onTap: () =>
-                          controller.pickAndSet(controller.residentialProof),
-                      onDelete: () => controller.residentialProof.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.residentialProof.value,
+                    onTap: () =>
+                        controller.pickAndSet(controller.residentialProof),
+                    onDelete: () => controller.residentialProof.value = null,
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        _BottomButton(
+        Obx(() => _BottomButton(
           label: 'Next →',
-          onTap: () {
-            controller.markDocComplete('residential_proof');
-            controller.nextPage();
-          },
-        ),
+          onTap: controller.canProceedResidential
+              ? () {
+                  controller.markDocComplete('residential_proof');
+                  controller.nextPage();
+                }
+              : null,
+        )),
       ],
     );
   }
@@ -418,6 +509,7 @@ class _ResidentialPage extends StatelessWidget {
 
 class _TaxInfoPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _TaxInfoPage({required this.controller});
 
   @override
@@ -442,36 +534,45 @@ class _TaxInfoPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 const InfoCard(
-                    title: 'Requirements:',
-                    body: 'This is required for legal and payment processing before you can accept jobs.'),
+                  title: 'Requirements:',
+                  body:
+                      'This is required for legal and payment processing before you can accept jobs.',
+                ),
                 const SizedBox(height: 12),
                 const InfoCard(
-                    title: 'Why we need this',
-                    body: 'We use this form for tax reporting purposes.'),
+                  title: 'Why we need this',
+                  body: 'We use this form for tax reporting purposes.',
+                ),
                 const SizedBox(height: 12),
                 GestureDetector(
                   onTap: () {},
                   child: Row(
                     children: [
-                      const Icon(Icons.download_outlined,
-                          color: AppColor.brownAccentPrimary, size: 16),
+                      const Icon(
+                        Icons.download_outlined,
+                        color: AppColor.brownAccentPrimary,
+                        size: 16,
+                      ),
                       const SizedBox(width: 6),
-                      Text('Need a blank W-9? Download Template',
-                          style: AppTextStyle.bodySmallMedium
-                              .copyWith(color: AppColor.brownAccentPrimary)),
+                      Text(
+                        'Need a blank W-9? Download Template',
+                        style: AppTextStyle.bodySmallMedium.copyWith(
+                          color: AppColor.brownAccentPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Upload W-9 Document',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload W-9 Document'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.w9Doc.value,
-                      onTap: () => controller.pickAndSet(controller.w9Doc),
-                      onDelete: () => controller.w9Doc.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.w9Doc.value,
+                    onTap: () => controller.pickAndSet(controller.w9Doc),
+                    onDelete: () => controller.w9Doc.value = null,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -483,37 +584,49 @@ class _TaxInfoPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('1099 Information Document',
-                          style: AppTextStyle.titleSmallSemiBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 15)),
+                      Text(
+                        '1099 Information Document',
+                        style: AppTextStyle.titleSmallSemiBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 15,
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       Text(
-                          'Have you previously received a 1099 from SquadOnSite?',
-                          style: AppTextStyle.bodySmallRegular
-                              .copyWith(color: AppColor.blackShade1)),
+                        'Have you previously received a 1099 from SquadOnSite?',
+                        style: AppTextStyle.bodySmallRegular.copyWith(
+                          color: AppColor.blackShade1,
+                        ),
+                      ),
                       const SizedBox(height: 10),
-                      Obx(() => Column(children: [
+                      Obx(
+                        () => Column(
+                          children: [
                             _RadioOption(
-                                label: 'Yes',
-                                selected: controller.has1099.value == true,
-                                onTap: () => controller.has1099.value = true),
+                              label: 'Yes',
+                              selected: controller.has1099.value == true,
+                              onTap: () => controller.has1099.value = true,
+                            ),
                             const SizedBox(height: 8),
                             _RadioOption(
-                                label: 'No',
-                                selected: controller.has1099.value == false,
-                                onTap: () => controller.has1099.value = false),
-                          ])),
+                              label: 'No',
+                              selected: controller.has1099.value == false,
+                              onTap: () => controller.has1099.value = false,
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 14),
-                      Text('Upload your most recent 1099 PDF/Image',
-                          style: AppTextStyle.bodySmallMedium
-                              .copyWith(color: AppColor.blackShade1)),
+                      const _RequiredLabel('Upload your most recent 1099 PDF/Image'),
                       const SizedBox(height: 10),
-                      Obx(() => UploadBox(
-                            filePath: controller.doc1099.value,
-                            onTap: () =>
-                                controller.pickAndSet(controller.doc1099),
-                            onDelete: () => controller.doc1099.value = null,
-                          )),
+                      Obx(
+                        () => UploadBox(
+                          filePath: controller.doc1099.value,
+                          onTap: () =>
+                              controller.pickAndSet(controller.doc1099),
+                          onDelete: () => controller.doc1099.value = null,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -521,13 +634,15 @@ class _TaxInfoPage extends StatelessWidget {
             ),
           ),
         ),
-        _BottomButton(
+        Obx(() => _BottomButton(
           label: 'Next →',
-          onTap: () {
-            controller.markDocComplete('tax_info');
-            controller.nextPage();
-          },
-        ),
+          onTap: controller.canProceedTaxInfo
+              ? () {
+                  controller.markDocComplete('tax_info');
+                  controller.nextPage();
+                }
+              : null,
+        )),
       ],
     );
   }
@@ -539,6 +654,7 @@ class _TaxInfoPage extends StatelessWidget {
 
 class _CvPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _CvPage({required this.controller});
 
   @override
@@ -563,29 +679,32 @@ class _CvPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 const InfoCard(
-                    title: 'Accepted Formats:',
-                    body: 'PDF, DOC, DOCX. Maximum Size: 10MB.'),
+                  title: 'Accepted Formats:',
+                  body: 'PDF, DOC, DOCX. Maximum Size: 10MB.',
+                ),
                 const SizedBox(height: 20),
-                Text('Upload Document',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload Document'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.cvResume.value,
-                      onTap: () => controller.pickAndSet(controller.cvResume),
-                      onDelete: () => controller.cvResume.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.cvResume.value,
+                    onTap: () => controller.pickAndSet(controller.cvResume),
+                    onDelete: () => controller.cvResume.value = null,
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        _BottomButton(
+        Obx(() => _BottomButton(
           label: 'Next →',
-          onTap: () {
-            controller.markDocComplete('cv_resume');
-            controller.nextPage();
-          },
-        ),
+          onTap: controller.canProceedCv
+              ? () {
+                  controller.markDocComplete('cv_resume');
+                  controller.nextPage();
+                }
+              : null,
+        )),
       ],
     );
   }
@@ -598,6 +717,7 @@ class _CvPage extends StatelessWidget {
 
 class _BackgroundPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _BackgroundPage({required this.controller});
 
   @override
@@ -627,7 +747,8 @@ class _BackgroundPage extends StatelessWidget {
                     color: const Color(0xFFFAF5EE),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColor.brownAccentPrimary.withValues(alpha: 0.4)),
+                      color: AppColor.brownAccentPrimary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -635,23 +756,33 @@ class _BackgroundPage extends StatelessWidget {
                         width: 48,
                         height: 48,
                         decoration: const BoxDecoration(
-                            color: Color(0xFFFFF3E0), shape: BoxShape.circle),
-                        child: const Icon(Icons.lock_outline,
-                            color: AppColor.brownAccentPrimary, size: 24),
+                          color: Color(0xFFFFF3E0),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock_outline,
+                          color: AppColor.brownAccentPrimary,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Secure & Confidential',
-                                style: AppTextStyle.titleSmallSemiBold
-                                    .copyWith(color: AppColor.blackShade1)),
+                            Text(
+                              'Secure & Confidential',
+                              style: AppTextStyle.titleSmallSemiBold.copyWith(
+                                color: AppColor.blackShade1,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Text(
-                                'Your information is encrypted and securely processed.',
-                                style: AppTextStyle.bodySmallRegular
-                                    .copyWith(color: AppColor.coolGrayText)),
+                              'Your information is encrypted and securely processed.',
+                              style: AppTextStyle.bodySmallRegular.copyWith(
+                                color: AppColor.coolGrayText,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -669,117 +800,157 @@ class _BackgroundPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('What we Check',
-                          style: AppTextStyle.titleSmallSemiBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 16)),
+                      Text(
+                        'What we Check',
+                        style: AppTextStyle.titleSmallSemiBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 16,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       ...[
-                        ['Criminal Record', 'National and County level screening.'],
-                        ['SSN Trace', 'Verification of identity and address history.'],
+                        [
+                          'Criminal Record',
+                          'National and County level screening.',
+                        ],
+                        [
+                          'SSN Trace',
+                          'Verification of identity and address history.',
+                        ],
                         ['Drug Test', 'Medical and Fitness Test'],
-                        ['Global Watchlist', 'Checks against domestic and international lists.'],
-                      ].map((item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.check_circle_outline,
-                                    color: AppColor.brownAccentPrimary, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: RichText(
-                                    text: TextSpan(children: [
+                        [
+                          'Global Watchlist',
+                          'Checks against domestic and international lists.',
+                        ],
+                      ].map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.check_circle_outline,
+                                color: AppColor.brownAccentPrimary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    children: [
                                       TextSpan(
-                                          text: '${item[0]}\n',
-                                          style: AppTextStyle.bodySmallMedium
-                                              .copyWith(color: AppColor.blackShade1)),
+                                        text: '${item[0]}\n',
+                                        style: AppTextStyle.bodySmallMedium
+                                            .copyWith(
+                                              color: AppColor.blackShade1,
+                                            ),
+                                      ),
                                       TextSpan(
-                                          text: item[1],
-                                          style: AppTextStyle.bodySmallRegular
-                                              .copyWith(color: AppColor.coolGrayText)),
-                                    ]),
+                                        text: item[1],
+                                        style: AppTextStyle.bodySmallRegular
+                                            .copyWith(
+                                              color: AppColor.coolGrayText,
+                                            ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
-                          )),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                Obx(() => GestureDetector(
-                      onTap: () => controller.backgroundAuthorized.value =
-                          !controller.backgroundAuthorized.value,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Checkbox(
-                            value: controller.backgroundAuthorized.value,
-                            onChanged: (v) =>
-                                controller.backgroundAuthorized.value =
-                                    v ?? false,
-                            activeColor: AppColor.brownAccentPrimary,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: AppTextStyle.bodySmallRegular
-                                    .copyWith(color: AppColor.blackShade1),
-                                children: [
-                                  const TextSpan(
-                                      text:
-                                          'I authorize 1App Technologies to conduct a background check and agree to the '),
-                                  TextSpan(
-                                      text: 'Terms of Service',
-                                      style: AppTextStyle.bodySmallMedium
-                                          .copyWith(
-                                              color: AppColor.brownAccentPrimary)),
-                                  const TextSpan(text: '.'),
-                                ],
+                Obx(
+                  () => GestureDetector(
+                    onTap: () => controller.backgroundAuthorized.value =
+                        !controller.backgroundAuthorized.value,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: controller.backgroundAuthorized.value,
+                          onChanged: (v) =>
+                              controller.backgroundAuthorized.value =
+                                  v ?? false,
+                          activeColor: AppColor.brownAccentPrimary,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: RichText(
+                            text: TextSpan(
+                              style: AppTextStyle.bodySmallRegular.copyWith(
+                                color: AppColor.blackShade1,
                               ),
+                              children: [
+                                const TextSpan(
+                                  text:
+                                      'I authorize 1App Technologies to conduct a background check and agree to the ',
+                                ),
+                                TextSpan(
+                                  text: 'Terms of Service',
+                                  style: AppTextStyle.bodySmallMedium.copyWith(
+                                    color: AppColor.brownAccentPrimary,
+                                  ),
+                                ),
+                                const TextSpan(text: '.'),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    )),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 20),
-                Text('Drug Screening',
-                    style: AppTextStyle.titleSmallSemiBold.copyWith(
-                        color: AppColor.blackShade1, fontSize: 16)),
+                Text(
+                  'Drug Screening',
+                  style: AppTextStyle.titleSmallSemiBold.copyWith(
+                    color: AppColor.blackShade1,
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
-                    'A drug screening is required before activation. Upload valid drug test report.',
-                    style: AppTextStyle.bodySmallRegular
-                        .copyWith(color: AppColor.coolGrayText)),
+                  'A drug screening is required before activation. Upload valid drug test report.',
+                  style: AppTextStyle.bodySmallRegular.copyWith(
+                    color: AppColor.coolGrayText,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                Text('Upload Document',
-                    style: AppTextStyle.titleSmallSemiBold
-                        .copyWith(color: AppColor.blackShade1)),
+                const _RequiredLabel('Upload Document'),
                 const SizedBox(height: 10),
-                Obx(() => UploadBox(
-                      filePath: controller.drugScreeningDoc.value,
-                      onTap: () =>
-                          controller.pickAndSet(controller.drugScreeningDoc),
-                      onDelete: () => controller.drugScreeningDoc.value = null,
-                    )),
+                Obx(
+                  () => UploadBox(
+                    filePath: controller.drugScreeningDoc.value,
+                    onTap: () =>
+                        controller.pickAndSet(controller.drugScreeningDoc),
+                    onDelete: () => controller.drugScreeningDoc.value = null,
+                  ),
+                ),
               ],
             ),
           ),
         ),
         // "Continue →" triggers the upload API
-        Obx(() => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: CommonButton(
-                label: 'Continue →',
-                onTap: controller.submitDocuments,
-                isLoading: controller.isUploadingDocs.value,
-                backgroundColor: AppColor.brownAccentPrimary,
-                foregroundColor: Colors.white,
-              ),
-            )),
+        Obx(
+          () => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: CommonButton(
+              label: 'Continue →',
+              onTap: controller.submitDocuments,
+              enabled: controller.canProceedBackground,
+              isLoading: controller.isUploadingDocs.value,
+              backgroundColor: AppColor.brownAccentPrimary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -791,6 +962,7 @@ class _BackgroundPage extends StatelessWidget {
 
 class _SkillsPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _SkillsPage({required this.controller});
 
   @override
@@ -812,18 +984,26 @@ class _SkillsPage extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColor.brownAccentPrimary.withValues(alpha: 0.4)),
+                      color: AppColor.brownAccentPrimary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Skill Set Updation',
-                          style: AppTextStyle.titleLargeBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 20)),
+                      Text(
+                        'Skill Set Updation',
+                        style: AppTextStyle.titleLargeBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 20,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Select all skills that apply.',
-                          style: AppTextStyle.bodySmallRegular
-                              .copyWith(color: AppColor.coolGrayText)),
+                      Text(
+                        'Select all skills that apply.',
+                        style: AppTextStyle.bodySmallRegular.copyWith(
+                          color: AppColor.coolGrayText,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -835,74 +1015,95 @@ class _SkillsPage extends StatelessWidget {
                   onChanged: (v) => controller.skillSearchQuery.value = v,
                 ),
                 const SizedBox(height: 16),
-                Obx(() => Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: controller.filteredSkills.map((skill) {
-                        final selected =
-                            controller.selectedSkills.contains(skill);
-                        return GestureDetector(
-                          onTap: () => controller.toggleSkill(skill),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
-                            decoration: BoxDecoration(
+                Obx(
+                  () => Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: controller.filteredSkills.map((skill) {
+                      final selected = controller.selectedSkills.contains(
+                        skill,
+                      );
+                      return GestureDetector(
+                        onTap: () => controller.toggleSkill(skill),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColor.blackShade1
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
                               color: selected
                                   ? AppColor.blackShade1
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                  color: selected
-                                      ? AppColor.blackShade1
-                                      : AppColor.lightGreyColor),
+                                  : AppColor.lightGreyColor,
                             ),
-                            child: Text(skill,
-                                style: AppTextStyle.bodyMediumMedium.copyWith(
-                                    color: selected
-                                        ? Colors.white
-                                        : AppColor.blackShade1)),
                           ),
-                        );
-                      }).toList(),
-                    )),
+                          child: Text(
+                            skill,
+                            style: AppTextStyle.bodyMediumMedium.copyWith(
+                              color: selected
+                                  ? Colors.white
+                                  : AppColor.blackShade1,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
                 const SizedBox(height: 24),
-                Text('EXPERIENCE LEVEL',
-                    style: AppTextStyle.labelSmallMedium.copyWith(
-                        color: AppColor.blackShade1, letterSpacing: 1)),
+                Text(
+                  'EXPERIENCE LEVEL',
+                  style: AppTextStyle.labelSmallMedium.copyWith(
+                    color: AppColor.blackShade1,
+                    letterSpacing: 1,
+                  ),
+                ),
                 const SizedBox(height: 10),
-                Obx(() => Row(
-                      children:
-                          ['Beginner', 'Intermediate', 'Expert'].map((level) {
-                        final selected =
-                            controller.experienceLevel.value == level;
-                        return GestureDetector(
-                          onTap: () =>
-                              controller.experienceLevel.value = level,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            margin: const EdgeInsets.only(right: 10),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
-                            decoration: BoxDecoration(
+                Obx(
+                  () => Row(
+                    children: ['Beginner', 'Intermediate', 'Expert'].map((
+                      level,
+                    ) {
+                      final selected =
+                          controller.experienceLevel.value == level;
+                      return GestureDetector(
+                        onTap: () => controller.experienceLevel.value = level,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.only(right: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColor.blackShade1
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
                               color: selected
                                   ? AppColor.blackShade1
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                  color: selected
-                                      ? AppColor.blackShade1
-                                      : AppColor.lightGreyColor),
+                                  : AppColor.lightGreyColor,
                             ),
-                            child: Text(level,
-                                style: AppTextStyle.bodyMediumMedium.copyWith(
-                                    color: selected
-                                        ? Colors.white
-                                        : AppColor.blackShade1)),
                           ),
-                        );
-                      }).toList(),
-                    )),
+                          child: Text(
+                            level,
+                            style: AppTextStyle.bodyMediumMedium.copyWith(
+                              color: selected
+                                  ? Colors.white
+                                  : AppColor.blackShade1,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -919,6 +1120,7 @@ class _SkillsPage extends StatelessWidget {
 
 class _ExperiencePage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _ExperiencePage({required this.controller});
 
   @override
@@ -940,49 +1142,69 @@ class _ExperiencePage extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColor.brownAccentPrimary.withValues(alpha: 0.4)),
+                      color: AppColor.brownAccentPrimary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Experience',
-                          style: AppTextStyle.titleLargeBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 20)),
+                      Text(
+                        'Experience',
+                        style: AppTextStyle.titleLargeBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 20,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Update your experience',
-                          style: AppTextStyle.bodySmallRegular
-                              .copyWith(color: AppColor.coolGrayText)),
+                      Text(
+                        'Update your experience',
+                        style: AppTextStyle.bodySmallRegular.copyWith(
+                          color: AppColor.coolGrayText,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Years of Experience',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Years of Experience',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.yearsController,
-                    hintText: 'e.g. 3',
-                    borderRadius: 30,
-                    keyboardType: TextInputType.number),
+                  controller: controller.yearsController,
+                  hintText: 'e.g. 3',
+                  borderRadius: 30,
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 16),
-                Text('Previous Company (optional)',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Previous Company (optional)',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.company1Controller,
-                    hintText: 'Company name',
-                    borderRadius: 30),
+                  controller: controller.company1Controller,
+                  hintText: 'Company name',
+                  borderRadius: 30,
+                ),
                 const SizedBox(height: 16),
-                Text('Previous Company (optional)',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Previous Company (optional)',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.company2Controller,
-                    hintText: 'Company name',
-                    borderRadius: 30),
+                  controller: controller.company2Controller,
+                  hintText: 'Company name',
+                  borderRadius: 30,
+                ),
                 const SizedBox(height: 16),
                 _UploadRowTile(
                   label: 'Certificates',
@@ -1003,16 +1225,18 @@ class _ExperiencePage extends StatelessWidget {
             ),
           ),
         ),
-        Obx(() => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: CommonButton(
-                label: 'Next →',
-                onTap: controller.submitSkillsAndExperience,
-                isLoading: controller.isSubmittingProfile.value,
-                backgroundColor: AppColor.brownAccentPrimary,
-                foregroundColor: Colors.white,
-              ),
-            )),
+        Obx(
+          () => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: CommonButton(
+              label: 'Next →',
+              onTap: controller.submitSkillsAndExperience,
+              isLoading: controller.isSubmittingProfile.value,
+              backgroundColor: AppColor.brownAccentPrimary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1024,6 +1248,7 @@ class _ExperiencePage extends StatelessWidget {
 
 class _BankPage extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _BankPage({required this.controller});
 
   @override
@@ -1045,107 +1270,153 @@ class _BankPage extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColor.brownAccentPrimary.withValues(alpha: 0.4)),
+                      color: AppColor.brownAccentPrimary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Bank Details',
-                          style: AppTextStyle.titleLargeBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 20)),
+                      Text(
+                        'Bank Details',
+                        style: AppTextStyle.titleLargeBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 20,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Enter your bank details for payouts.',
-                          style: AppTextStyle.bodySmallRegular
-                              .copyWith(color: AppColor.coolGrayText)),
+                      Text(
+                        'Enter your bank details for payouts.',
+                        style: AppTextStyle.bodySmallRegular.copyWith(
+                          color: AppColor.coolGrayText,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text('Account Holder Name',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Account Holder Name',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.accountNameController,
-                    hintText: 'As per bank records',
-                    borderRadius: 12),
+                  controller: controller.accountNameController,
+                  hintText: 'As per bank records',
+                  borderRadius: 12,
+                ),
                 const SizedBox(height: 16),
-                Text('Bank Name',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Bank Name',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.bankNameController,
-                    hintText: 'e.g. HDFC Bank',
-                    borderRadius: 12),
+                  controller: controller.bankNameController,
+                  hintText: 'e.g. HDFC Bank',
+                  borderRadius: 12,
+                ),
                 const SizedBox(height: 16),
-                Text('Account Number',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'Account Number',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.accountNumberController,
-                    hintText: 'XXXXXXXXXXXXX',
-                    borderRadius: 12,
-                    keyboardType: TextInputType.number),
+                  controller: controller.accountNumberController,
+                  hintText: 'XXXXXXXXXXXXX',
+                  borderRadius: 12,
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 16),
-                Text('IFSC Code',
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
+                Text(
+                  'IFSC Code',
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.ifscController,
-                    hintText: 'SBIN0000123',
-                    borderRadius: 12),
+                  controller: controller.ifscController,
+                  hintText: 'SBIN0000123',
+                  borderRadius: 12,
+                ),
                 const SizedBox(height: 16),
-                Row(children: [
-                  Text('UPI ID',
-                      style: AppTextStyle.bodyMediumMedium
-                          .copyWith(color: AppColor.blackShade1)),
-                  const SizedBox(width: 6),
-                  Text('(optional)',
-                      style: AppTextStyle.bodySmallRegular
-                          .copyWith(color: AppColor.coolGrayText)),
-                ]),
+                Row(
+                  children: [
+                    Text(
+                      'UPI ID',
+                      style: AppTextStyle.bodyMediumMedium.copyWith(
+                        color: AppColor.blackShade1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '(optional)',
+                      style: AppTextStyle.bodySmallRegular.copyWith(
+                        color: AppColor.coolGrayText,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 CommonTextFormField(
-                    controller: controller.upiController,
-                    hintText: 'name@upi',
-                    borderRadius: 12),
+                  controller: controller.upiController,
+                  hintText: 'name@upi',
+                  borderRadius: 12,
+                ),
                 const SizedBox(height: 16),
                 Obx(() {
                   final path = controller.cancelledCheque.value;
                   if (path != null) {
                     return Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF6FFF6),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(color: Colors.green.shade300),
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.insert_drive_file_outlined,
-                            color: Colors.green, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(path.split('/').last,
-                              style: AppTextStyle.bodySmallMedium
-                                  .copyWith(color: AppColor.blackShade1),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.insert_drive_file_outlined,
+                            color: Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              path.split('/').last,
+                              style: AppTextStyle.bodySmallMedium.copyWith(
+                                color: AppColor.blackShade1,
+                              ),
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                        GestureDetector(
-                          onTap: () async {
-                            final confirmed = await showDeleteFileDialog();
-                            if (confirmed) {
-                              controller.cancelledCheque.value = null;
-                            }
-                          },
-                          child: const Icon(Icons.close,
-                              color: Colors.red, size: 20),
-                        ),
-                      ]),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              final confirmed = await showDeleteFileDialog();
+                              if (confirmed) {
+                                controller.cancelledCheque.value = null;
+                              }
+                            },
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   }
                   return GestureDetector(
@@ -1153,7 +1424,9 @@ class _BankPage extends StatelessWidget {
                         controller.pickAndSet(controller.cancelledCheque),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(30),
@@ -1162,12 +1435,18 @@ class _BankPage extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Cancelled Cheque',
-                              style: AppTextStyle.bodyMediumMedium
-                                  .copyWith(color: AppColor.blackShade1)),
-                          Text('Upload',
-                              style: AppTextStyle.bodySmallMedium.copyWith(
-                                  color: AppColor.brownAccentPrimary)),
+                          Text(
+                            'Cancelled Cheque',
+                            style: AppTextStyle.bodyMediumMedium.copyWith(
+                              color: AppColor.blackShade1,
+                            ),
+                          ),
+                          Text(
+                            'Upload',
+                            style: AppTextStyle.bodySmallMedium.copyWith(
+                              color: AppColor.brownAccentPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1177,16 +1456,18 @@ class _BankPage extends StatelessWidget {
             ),
           ),
         ),
-        Obx(() => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: CommonButton(
-                label: 'Next →',
-                onTap: controller.submitBankDetails,
-                isLoading: controller.isSubmittingBank.value,
-                backgroundColor: AppColor.brownAccentPrimary,
-                foregroundColor: Colors.white,
-              ),
-            )),
+        Obx(
+          () => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: CommonButton(
+              label: 'Next →',
+              onTap: controller.submitBankDetails,
+              isLoading: controller.isSubmittingBank.value,
+              backgroundColor: AppColor.brownAccentPrimary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1251,6 +1532,7 @@ class _UnderReviewPage extends GetView<TechnicianOnboardingController> {
 
 class _PendingReviewView extends StatelessWidget {
   final TechnicianOnboardingController controller;
+
   const _PendingReviewView({required this.controller});
 
   @override
@@ -1279,21 +1561,28 @@ class _PendingReviewView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.search,
-                      size: 52, color: AppColor.brownAccentPrimary),
+                  child: const Icon(
+                    Icons.search,
+                    size: 52,
+                    color: AppColor.brownAccentPrimary,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 Text(
                   "We're Reviewing Your\nDocuments",
                   textAlign: TextAlign.center,
                   style: AppTextStyle.headlineLargeBold.copyWith(
-                      color: AppColor.blackShade1, fontSize: 24, height: 1.3),
+                    color: AppColor.blackShade1,
+                    fontSize: 24,
+                    height: 1.3,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   'Verification usually takes 24–72 Hours.',
-                  style: AppTextStyle.bodyMediumRegular
-                      .copyWith(color: AppColor.coolGrayText),
+                  style: AppTextStyle.bodyMediumRegular.copyWith(
+                    color: AppColor.coolGrayText,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 // Verification status timeline
@@ -1312,8 +1601,10 @@ class _PendingReviewView extends StatelessWidget {
                     children: [
                       Text(
                         'Verification Status',
-                        style: AppTextStyle.titleSmallSemiBold
-                            .copyWith(color: AppColor.blackShade1, fontSize: 16),
+                        style: AppTextStyle.titleSmallSemiBold.copyWith(
+                          color: AppColor.blackShade1,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _StatusItem(
@@ -1388,8 +1679,9 @@ class _RejectedView extends StatelessWidget {
                             child: Icon(
                               Icons.insert_drive_file_outlined,
                               size: 56,
-                              color: AppColor.brownAccentPrimary
-                                  .withValues(alpha: 0.6),
+                              color: AppColor.brownAccentPrimary.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                         ),
@@ -1400,8 +1692,11 @@ class _RejectedView extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: Colors.red,
                           ),
-                          child: const Icon(Icons.close,
-                              color: Colors.white, size: 18),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ],
                     ),
@@ -1410,16 +1705,18 @@ class _RejectedView extends StatelessWidget {
                   Center(
                     child: Text(
                       'Documents not Approved',
-                      style: AppTextStyle.headlineLargeBold
-                          .copyWith(color: AppColor.blackShade1),
+                      style: AppTextStyle.headlineLargeBold.copyWith(
+                        color: AppColor.blackShade1,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
                   Center(
                     child: Text(
                       'Verification usually takes 24–72 Hours.',
-                      style: AppTextStyle.bodyMediumRegular
-                          .copyWith(color: AppColor.coolGrayText),
+                      style: AppTextStyle.bodyMediumRegular.copyWith(
+                        color: AppColor.coolGrayText,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -1430,7 +1727,8 @@ class _RejectedView extends StatelessWidget {
                       color: const Color(0xFFFFF0EE),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: Colors.red.withValues(alpha: 0.3)),
+                        color: Colors.red.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1442,8 +1740,11 @@ class _RejectedView extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: Colors.red,
                           ),
-                          child: const Icon(Icons.priority_high,
-                              color: Colors.white, size: 18),
+                          child: const Icon(
+                            Icons.priority_high,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1452,16 +1753,17 @@ class _RejectedView extends StatelessWidget {
                             children: [
                               Text(
                                 'Action Required',
-                                style: AppTextStyle.titleSmallSemiBold
-                                    .copyWith(color: Colors.red),
+                                style: AppTextStyle.titleSmallSemiBold.copyWith(
+                                  color: Colors.red,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Some documents need your attention. Please review the feedback below and update your documents to continue.',
-                                style: AppTextStyle.bodySmallRegular
-                                    .copyWith(
-                                        color: AppColor.blackShade1,
-                                        height: 1.5),
+                                style: AppTextStyle.bodySmallRegular.copyWith(
+                                  color: AppColor.blackShade1,
+                                  height: 1.5,
+                                ),
                               ),
                             ],
                           ),
@@ -1485,7 +1787,9 @@ class _RejectedView extends StatelessWidget {
                         Text(
                           'Verification Status',
                           style: AppTextStyle.titleSmallSemiBold.copyWith(
-                              color: AppColor.blackShade1, fontSize: 16),
+                            color: AppColor.blackShade1,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         _StatusItem(
@@ -1503,15 +1807,16 @@ class _RejectedView extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                  Icons.insert_drive_file_outlined,
-                                  color: AppColor.brownAccentPrimary,
-                                  size: 14),
+                                Icons.insert_drive_file_outlined,
+                                color: AppColor.brownAccentPrimary,
+                                size: 14,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 'View Feedback  ›',
-                                style: AppTextStyle.bodySmallMedium
-                                    .copyWith(
-                                        color: AppColor.brownAccentPrimary),
+                                style: AppTextStyle.bodySmallMedium.copyWith(
+                                  color: AppColor.brownAccentPrimary,
+                                ),
                               ),
                             ],
                           ),
@@ -1527,26 +1832,30 @@ class _RejectedView extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   // ── Document cards ───────────────────────────────────────
-                  ...docs.map((doc) => _DocumentCard(
-                        doc: doc,
-                        icon: iconFor(doc.documentId),
-                        controller: controller,
-                      )),
+                  ...docs.map(
+                    (doc) => _DocumentCard(
+                      doc: doc,
+                      icon: iconFor(doc.documentId),
+                      controller: controller,
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
           // ── Bottom CTA ───────────────────────────────────────────────────
-          Obx(() => Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                child: CommonButton(
-                  label: 'Confirm and Update Document',
-                  onTap: controller.submitReUpload,
-                  isLoading: controller.isReUploading.value,
-                  backgroundColor: AppColor.brownAccentPrimary,
-                  foregroundColor: Colors.white,
-                ),
-              )),
+          Obx(
+            () => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: CommonButton(
+                label: 'Confirm and Update Document',
+                onTap: controller.submitReUpload,
+                isLoading: controller.isReUploading.value,
+                backgroundColor: AppColor.brownAccentPrimary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
         ],
       );
     });
@@ -1579,8 +1888,9 @@ class _DocumentCardState extends State<_DocumentCard> {
     final isRejected = doc.isRejected;
 
     // Filename extracted from s3Key for display ("…/abc.jpg" → "abc.jpg")
-    final uploadedFileName =
-        doc.s3Key.isNotEmpty ? doc.s3Key.split('/').last : null;
+    final uploadedFileName = doc.s3Key.isNotEmpty
+        ? doc.s3Key.split('/').last
+        : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1610,11 +1920,13 @@ class _DocumentCardState extends State<_DocumentCard> {
                         : const Color(0xFFFFF3E0),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(widget.icon,
-                      color: isRejected
-                          ? Colors.red
-                          : AppColor.brownAccentPrimary,
-                      size: 22),
+                  child: Icon(
+                    widget.icon,
+                    color: isRejected
+                        ? Colors.red
+                        : AppColor.brownAccentPrimary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1624,21 +1936,30 @@ class _DocumentCardState extends State<_DocumentCard> {
                       Text(
                         doc.label,
                         style: AppTextStyle.titleSmallSemiBold.copyWith(
-                            color: AppColor.blackShade1, fontSize: 15),
+                          color: AppColor.blackShade1,
+                          fontSize: 15,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       // Status badge
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: isRejected
                               ? Colors.red.withValues(alpha: 0.1)
+                              : doc.status.toLowerCase() == 'pending'
+                              ? Colors.yellow.withValues(alpha: 0.2)
                               : AppColor.lightGreen1Color,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color:
-                                isRejected ? Colors.red : AppColor.green2Color,
+                            color: isRejected
+                                ? Colors.red
+                                : doc.status.toLowerCase() == 'pending'
+                                ? Colors.orange.withValues(alpha: 0.2)
+                                : AppColor.green2Color,
                           ),
                         ),
                         child: Row(
@@ -1651,17 +1972,24 @@ class _DocumentCardState extends State<_DocumentCard> {
                                 shape: BoxShape.circle,
                                 color: isRejected
                                     ? Colors.red
+                                    : doc.status.toLowerCase() == 'pending'
+                                    ? Colors.orange
                                     : AppColor.green2Color,
                               ),
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              isRejected ? 'Rejected' : 'Approved',
+                              isRejected
+                                  ? 'Rejected'
+                                  : doc.status.capitalizeFirst.toString(),
                               style: AppTextStyle.labelSmallMedium.copyWith(
-                                  color: isRejected
-                                      ? Colors.red
-                                      : AppColor.green2Color,
-                                  fontSize: 11),
+                                color: isRejected
+                                    ? Colors.red
+                                    : doc.status.toLowerCase() == 'pending'
+                                    ? Colors.orange
+                                    : AppColor.green2Color,
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -1679,29 +2007,46 @@ class _DocumentCardState extends State<_DocumentCard> {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6FFF6),
+                  color: doc.status.toLowerCase() == 'pending'
+                      ? Colors.yellow.withValues(alpha: 0.2): Color(0xFFF6FFF6),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.shade300),
+                  border: Border.all(color:  doc.status.toLowerCase() == 'pending'
+                      ? Colors.orange.withValues(alpha: 0.2) :Colors.green.shade300),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.insert_drive_file_outlined,
-                        color: Colors.green, size: 16),
+                     Icon(
+                      Icons.insert_drive_file_outlined,
+                      color: doc.status.toLowerCase() == 'pending'
+                          ? Colors.orange :
+                      Colors.green,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         uploadedFileName,
-                        style: AppTextStyle.bodySmallMedium
-                            .copyWith(color: AppColor.blackShade1),
+                        style: AppTextStyle.bodySmallMedium.copyWith(
+                          color: AppColor.blackShade1,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Icon(Icons.check_circle,
-                        color: Colors.green, size: 16),
+                    Icon(
+                      doc.status.toLowerCase() == 'pending'
+                          ? Icons.info
+                          : Icons.check_circle,
+                      color: doc.status.toLowerCase() == 'pending'
+                          ? Colors.orange
+                          : Colors.green,
+                      size: 16,
+                    ),
                   ],
                 ),
               ),
@@ -1721,8 +2066,10 @@ class _DocumentCardState extends State<_DocumentCard> {
                   children: [
                     Text(
                       'Reason for rejection',
-                      style: AppTextStyle.titleSmallSemiBold
-                          .copyWith(color: Colors.red, fontSize: 14),
+                      style: AppTextStyle.titleSmallSemiBold.copyWith(
+                        color: Colors.red,
+                        fontSize: 14,
+                      ),
                     ),
                     Icon(
                       _expanded
@@ -1743,8 +2090,10 @@ class _DocumentCardState extends State<_DocumentCard> {
                   doc.rejectionReason?.isNotEmpty == true
                       ? doc.rejectionReason!
                       : 'Document is blurry and some information is not clearly visible.',
-                  style: AppTextStyle.bodySmallRegular
-                      .copyWith(color: AppColor.blackShade1, height: 1.5),
+                  style: AppTextStyle.bodySmallRegular.copyWith(
+                    color: AppColor.blackShade1,
+                    height: 1.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1756,27 +2105,36 @@ class _DocumentCardState extends State<_DocumentCard> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFBED),
                     borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.wb_sunny_outlined,
-                          color: Colors.amber, size: 18),
+                      const Icon(
+                        Icons.wb_sunny_outlined,
+                        color: Colors.amber,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('How to fix',
-                                style: AppTextStyle.bodySmallMedium
-                                    .copyWith(color: AppColor.blackShade1)),
+                            Text(
+                              'How to fix',
+                              style: AppTextStyle.bodySmallMedium.copyWith(
+                                color: AppColor.blackShade1,
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             Text(
                               'Please upload a clear, high-resolution image.\nAll edges and details should be visible.',
                               style: AppTextStyle.bodySmallRegular.copyWith(
-                                  color: AppColor.coolGrayText, height: 1.5),
+                                color: AppColor.coolGrayText,
+                                height: 1.5,
+                              ),
                             ),
                           ],
                         ),
@@ -1788,14 +2146,15 @@ class _DocumentCardState extends State<_DocumentCard> {
               const SizedBox(height: 12),
               // Re-upload button OR chosen file chip
               Obx(() {
-                final newPath =
-                    widget.controller.reUploadPaths[doc.documentId];
+                final newPath = widget.controller.reUploadPaths[doc.documentId];
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: newPath != null
                       ? Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF6FFF6),
                             borderRadius: BorderRadius.circular(10),
@@ -1803,14 +2162,18 @@ class _DocumentCardState extends State<_DocumentCard> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.insert_drive_file_outlined,
-                                  color: Colors.green, size: 18),
+                              const Icon(
+                                Icons.insert_drive_file_outlined,
+                                color: Colors.green,
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   newPath.split('/').last,
-                                  style: AppTextStyle.bodySmallMedium
-                                      .copyWith(color: AppColor.blackShade1),
+                                  style: AppTextStyle.bodySmallMedium.copyWith(
+                                    color: AppColor.blackShade1,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1818,8 +2181,11 @@ class _DocumentCardState extends State<_DocumentCard> {
                               GestureDetector(
                                 onTap: () => widget.controller.reUploadPaths
                                     .remove(doc.documentId),
-                                child: const Icon(Icons.close,
-                                    color: Colors.red, size: 18),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.red,
+                                  size: 18,
+                                ),
                               ),
                             ],
                           ),
@@ -1827,10 +2193,14 @@ class _DocumentCardState extends State<_DocumentCard> {
                       : SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () => widget.controller
-                                .pickReUploadFile(doc.documentId),
-                            icon: const Icon(Icons.refresh,
-                                color: Colors.white, size: 18),
+                            onPressed: () => widget.controller.pickReUploadFile(
+                              doc.documentId,
+                            ),
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                             label: const Text('Re-upload Document'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red,
@@ -1839,8 +2209,7 @@ class _DocumentCardState extends State<_DocumentCard> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                           ),
                         ),
@@ -1848,35 +2217,39 @@ class _DocumentCardState extends State<_DocumentCard> {
               }),
               const SizedBox(height: 8),
               // "Go back to update" — navigates to the original doc page
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: GestureDetector(
-                  onTap: () =>
-                      widget.controller.goToDocPageForId(doc.documentId),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColor.lightGreyColor),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.arrow_back_ios_new,
-                            size: 14, color: AppColor.brownAccentPrimary),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Go back to update this document',
-                          style: AppTextStyle.bodySmallMedium
-                              .copyWith(color: AppColor.brownAccentPrimary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              //   child: GestureDetector(
+              //     onTap: () =>
+              //         widget.controller.goToDocPageForId(doc.documentId),
+              //     child: Container(
+              //       width: double.infinity,
+              //       padding: const EdgeInsets.symmetric(vertical: 13),
+              //       decoration: BoxDecoration(
+              //         color: Colors.white,
+              //         borderRadius: BorderRadius.circular(10),
+              //         border: Border.all(color: AppColor.lightGreyColor),
+              //       ),
+              //       child: Row(
+              //         mainAxisAlignment: MainAxisAlignment.center,
+              //         children: [
+              //           const Icon(
+              //             Icons.arrow_back_ios_new,
+              //             size: 14,
+              //             color: AppColor.brownAccentPrimary,
+              //           ),
+              //           const SizedBox(width: 6),
+              //           Text(
+              //             'Go back to update this document',
+              //             style: AppTextStyle.bodySmallMedium.copyWith(
+              //               color: AppColor.brownAccentPrimary,
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ] else
               const SizedBox(height: 14),
           ],
@@ -1909,16 +2282,17 @@ class _StatusItem extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(children: [
-          Container(
+        Column(
+          children: [
+            Container(
               width: 14,
               height: 14,
-              decoration:
-                  BoxDecoration(shape: BoxShape.circle, color: color)),
-          if (!isLast)
-            Container(
-                width: 2, height: 36, color: AppColor.lightGreyColor),
-        ]),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            ),
+            if (!isLast)
+              Container(width: 2, height: 36, color: AppColor.lightGreyColor),
+          ],
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Padding(
@@ -1929,17 +2303,23 @@ class _StatusItem extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(title,
-                          style: AppTextStyle.titleSmallSemiBold
-                              .copyWith(color: AppColor.blackShade1)),
+                      child: Text(
+                        title,
+                        style: AppTextStyle.titleSmallSemiBold.copyWith(
+                          color: AppColor.blackShade1,
+                        ),
+                      ),
                     ),
                     if (trailing != null) trailing!,
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(subtitle,
-                    style: AppTextStyle.bodySmallRegular
-                        .copyWith(color: AppColor.coolGrayText)),
+                Text(
+                  subtitle,
+                  style: AppTextStyle.bodySmallRegular.copyWith(
+                    color: AppColor.coolGrayText,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1961,8 +2341,11 @@ class _StepIndicator extends StatelessWidget {
   static const _labels = ['Documents', 'Skills', 'Bank', 'Review'];
 
   @override
-  Widget build(BuildContext context) =>
-      OnboardingStepIndicator(currentStep: step, totalSteps: 4, labels: _labels);
+  Widget build(BuildContext context) => OnboardingStepIndicator(
+    currentStep: step,
+    totalSteps: 4,
+    labels: _labels,
+  );
 }
 
 /// Tappable outer step indicator — users can tap steps they have already reached.
@@ -1970,8 +2353,7 @@ class _StepIndicator extends StatelessWidget {
 class _TappableStepIndicator extends StatelessWidget {
   final TechnicianOnboardingController controller;
   final int step; // active step shown in the indicator (1-4)
-  const _TappableStepIndicator(
-      {required this.controller, required this.step});
+  const _TappableStepIndicator({required this.controller, required this.step});
 
   static const _labels = ['Documents', 'Skills', 'Bank', 'Review'];
 
@@ -2085,11 +2467,11 @@ class _DocSubStepIndicator extends StatelessWidget {
         if (i.isOdd) {
           final done = i ~/ 2 < currentDoc - 1;
           return Expanded(
-              child: Container(
-                  height: 2,
-                  color: done
-                      ? AppColor.blackShade1
-                      : AppColor.lightGreyColor));
+            child: Container(
+              height: 2,
+              color: done ? AppColor.blackShade1 : AppColor.lightGreyColor,
+            ),
+          );
         }
         final s = i ~/ 2 + 1;
         final active = s <= currentDoc;
@@ -2100,16 +2482,18 @@ class _DocSubStepIndicator extends StatelessWidget {
             shape: BoxShape.circle,
             color: active ? AppColor.blackShade1 : Colors.white,
             border: Border.all(
-                color: active
-                    ? AppColor.blackShade1
-                    : AppColor.lightGreyColor,
-                width: 1.5),
+              color: active ? AppColor.blackShade1 : AppColor.lightGreyColor,
+              width: 1.5,
+            ),
           ),
           child: Center(
-            child: Text('$s',
-                style: AppTextStyle.labelSmallMedium.copyWith(
-                    color: active ? Colors.white : AppColor.coolGrayText,
-                    fontWeight: FontWeight.w700)),
+            child: Text(
+              '$s',
+              style: AppTextStyle.labelSmallMedium.copyWith(
+                color: active ? Colors.white : AppColor.coolGrayText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         );
       }),
@@ -2117,22 +2501,54 @@ class _DocSubStepIndicator extends StatelessWidget {
   }
 }
 
+/// Label with a red asterisk suffix — e.g. "Upload Front *"
+class _RequiredLabel extends StatelessWidget {
+  final String text;
+  const _RequiredLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: text,
+            style: AppTextStyle.titleSmallSemiBold.copyWith(
+              color: AppColor.blackShade1,
+            ),
+          ),
+          const TextSpan(
+            text: ' *',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Bottom sticky button shared across all pages
 class _BottomButton extends StatelessWidget {
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+
   const _BottomButton({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        child: CommonButton(
-          label: label,
-          onTap: onTap,
-          backgroundColor: AppColor.brownAccentPrimary,
-          foregroundColor: Colors.white,
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+    child: CommonButton(
+      label: label,
+      onTap: onTap ?? () {},
+      enabled: onTap != null,
+      backgroundColor: AppColor.brownAccentPrimary,
+      foregroundColor: Colors.white,
+    ),
+  );
 }
 
 /// Radio-style option row (used in tax info page)
@@ -2140,16 +2556,19 @@ class _RadioOption extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _RadioOption(
-      {required this.label, required this.selected, required this.onTap});
+
+  const _RadioOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
@@ -2158,28 +2577,35 @@ class _RadioOption extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style: AppTextStyle.bodyMediumRegular
-                    .copyWith(color: AppColor.blackShade1)),
+            Text(
+              label,
+              style: AppTextStyle.bodyMediumRegular.copyWith(
+                color: AppColor.blackShade1,
+              ),
+            ),
             Container(
               width: 20,
               height: 20,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: selected
-                        ? AppColor.brownAccentPrimary
-                        : AppColor.lightGreyColor,
-                    width: 2),
+                  color: selected
+                      ? AppColor.brownAccentPrimary
+                      : AppColor.lightGreyColor,
+                  width: 2,
+                ),
               ),
               child: selected
                   ? Center(
                       child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColor.brownAccentPrimary)))
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColor.brownAccentPrimary,
+                        ),
+                      ),
+                    )
                   : null,
             ),
           ],
@@ -2195,12 +2621,14 @@ class _UploadRowTile extends StatelessWidget {
   final VoidCallback onTap;
   final RxList<String>? files;
   final Future<void> Function(String)? onDelete;
-  const _UploadRowTile(
-      {required this.label,
-      required this.actionLabel,
-      required this.onTap,
-      this.files,
-      this.onDelete});
+
+  const _UploadRowTile({
+    required this.label,
+    required this.actionLabel,
+    required this.onTap,
+    this.files,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2219,64 +2647,85 @@ class _UploadRowTile extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(label,
-                    style: AppTextStyle.bodyMediumMedium
-                        .copyWith(color: AppColor.blackShade1)),
-                Text(actionLabel,
-                    style: AppTextStyle.bodySmallMedium
-                        .copyWith(color: AppColor.brownAccentPrimary)),
+                Text(
+                  label,
+                  style: AppTextStyle.bodyMediumMedium.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                ),
+                Text(
+                  actionLabel,
+                  style: AppTextStyle.bodySmallMedium.copyWith(
+                    color: AppColor.brownAccentPrimary,
+                  ),
+                ),
               ],
             ),
           ),
         ),
         if (files != null)
-          Obx(() => files!.isEmpty
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: files!.map((path) {
-                      final name = path.split('/').last;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF6FFF6),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.green.shade300),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.insert_drive_file_outlined,
-                                size: 14, color: Colors.green),
-                            const SizedBox(width: 4),
-                            ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 140),
-                              child: Text(name,
-                                  style: AppTextStyle.bodySmallMedium
-                                      .copyWith(color: AppColor.blackShade1),
+          Obx(
+            () => files!.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: files!.map((path) {
+                        final name = path.split('/').last;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF6FFF6),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.green.shade300),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.insert_drive_file_outlined,
+                                size: 14,
+                                color: Colors.green,
+                              ),
+                              const SizedBox(width: 4),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 140,
+                                ),
+                                child: Text(
+                                  name,
+                                  style: AppTextStyle.bodySmallMedium.copyWith(
+                                    color: AppColor.blackShade1,
+                                  ),
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                            const SizedBox(width: 4),
-                            GestureDetector(
-                              onTap: () async {
-                                final confirmed = await showDeleteFileDialog();
-                                if (confirmed) onDelete?.call(path);
-                              },
-                              child: const Icon(Icons.close,
-                                  size: 14, color: Colors.red),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () async {
+                                  final confirmed =
+                                      await showDeleteFileDialog();
+                                  if (confirmed) onDelete?.call(path);
+                                },
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                )),
+          ),
       ],
     );
   }

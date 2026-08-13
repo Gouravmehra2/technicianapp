@@ -174,38 +174,18 @@ class TechnicianOnboardingController extends GetxController {
   void onInit() {
     super.onInit();
     _listenToVerificationUpdates();
-    // On cold start / app resume, fetch the current status immediately.
-    // If docs were already submitted and we're still in onboarding, we need to
-    // know whether to stay on page 0 or jump straight to the review page.
-    _initFromMe();
-  }
-
-  /// Fetches /me on first load and jumps to the correct page.
-  Future<void> _initFromMe() async {
-    await fetchMe();
-    // If docs have been submitted (status is pending/rejected/approved)
-    // and user hasn't navigated yet, jump to review page.
-    if (currentPage.value == 0 && verificationStatus.value == 'pending') {
-      // Jump without triggering another fetchMe (already done above)
-      currentPage.value = 9;
-      pageController.jumpToPage(9);
-    }
-    else if(currentPage.value == 0 && verificationStatus.value == 'not-started'){
-      currentPage.value = 0;
-      pageController.jumpToPage(0);
-    }
   }
 
   /// Subscribes to the `technician:verificationUpdated` socket event.
   /// Prints the incoming payload and stores it in [verificationUpdateData].
   void _listenToVerificationUpdates() {
-    // Ensure socket is initialized and connected.
-    // reconnectIfNeeded handles cold start + app resume safely.
     socketService.reconnectIfNeeded();
     _registerVerificationListener();
   }
 
   void _registerVerificationListener() {
+    // socket_service.on() automatically removes any previous listener for
+    // this event before adding — no stacking, no duplicate calls.
     socketService.on('technician:verificationUpdated', (data) {
       print('[Socket] technician:verificationUpdated received');
       print('[Socket] Data: $data');
@@ -215,12 +195,6 @@ class TechnicianOnboardingController extends GetxController {
       } else {
         verificationUpdateData.value = {'raw': data};
       }
-    });
-
-    // Re-register after reconnect so the listener is never lost
-    socketService.on('reconnect', (_) {
-      print('[Socket] Reconnected — re-registering verificationUpdated listener');
-      _registerVerificationListener();
     });
   }
 
@@ -256,7 +230,7 @@ class TechnicianOnboardingController extends GetxController {
 
       // If admin just approved → navigate to home
       if (verificationStatus.value == 'approved') {
-        Get.offAllNamed(AppRoutes.technicianHomeScreen);
+        Get.offAllNamed(AppRoutes.dashboardScreen);
       }
     } catch (e) {
       print('[Me] fetchMe error: $e');
@@ -410,6 +384,20 @@ class TechnicianOnboardingController extends GetxController {
   void markDocComplete(String key) {
     data.docCompleted[key] = true;
   }
+
+  // ── Per-page upload readiness ─────────────────────────────────────────────
+
+  bool get canProceedDrivingLicense =>
+      drivingLicenseFront.value != null && drivingLicenseBack.value != null;
+
+  bool get canProceedResidential => residentialProof.value != null;
+
+  bool get canProceedTaxInfo => w9Doc.value != null && doc1099.value != null;
+
+  bool get canProceedCv => cvResume.value != null;
+
+  bool get canProceedBackground =>
+      drugScreeningDoc.value != null && backgroundAuthorized.value;
 
   /// Called when user taps "Continue →" on the Background Check page (page 5).
   /// Validates all required documents are uploaded, calls the upload API,
@@ -566,7 +554,6 @@ class TechnicianOnboardingController extends GetxController {
   @override
   void onClose() {
     socketService.off('technician:verificationUpdated');
-    socketService.off('reconnect');
     pageController.dispose();
     nameController.dispose();
     phoneController.dispose();

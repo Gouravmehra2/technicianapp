@@ -94,7 +94,8 @@ class OnboardingStepIndicator extends StatelessWidget {
 AppBar onboardingAppBar(String title) => AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      leading: GestureDetector(
+      leading: title == 'Under Review' ? SizedBox.shrink():
+      GestureDetector(
         onTap: Get.back,
         child: Container(
           margin: const EdgeInsets.all(8),

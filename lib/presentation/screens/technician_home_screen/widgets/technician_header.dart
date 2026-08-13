@@ -19,24 +19,12 @@ class TechnicianHeader extends StatelessWidget {
         children: [
           // Avatar with online dot
           Stack(
+            // clipBehavior: Clip.none,
             children: [
               CircleAvatar(
-                radius: 34,
+                radius: 30,
                 backgroundColor: Colors.white,
                 backgroundImage: AssetImage(AppAssets.personImage),
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.all(2),
-                  decoration: BoxDecoration(shape: BoxShape.circle),
-                  child: const Icon(
-                    Icons.verified_rounded,
-                    color: Colors.blue,
-                    size: 24,
-                  ),
-                ),
               ),
             ],
           ),
@@ -46,13 +34,14 @@ class TechnicianHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  controller.greeting,
-                  style: AppTextStyle.bodySmallMedium.copyWith(
-                    color: Colors.white,
-                  ),
-                ),
+                // Text(
+                //   controller.greeting,
+                //   style: AppTextStyle.bodySmallMedium.copyWith(
+                //     color: Colors.white,
+                //   ),
+                // ),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       controller.userName,
@@ -61,11 +50,9 @@ class TechnicianHeader extends StatelessWidget {
                         fontSize: 20,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    const Text('👋', style: TextStyle(fontSize: 18)),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 1),
                 // ── Current location chip (tappable) ──────────────────
                 Obx(() {
                   final loc = controller.currentLocation.value;

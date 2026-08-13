@@ -44,16 +44,11 @@ class LoginBottomSheet extends StatelessWidget {
                 // ── Logo ──────────────────────────────────────────────────────
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: AppColor.neutral1,
+                  decoration:  BoxDecoration(
+                    color: AppColor.brownColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    'S',
-                    style: AppTextStyle.headlineLargeBold.copyWith(
-                      color: AppColor.blackShade1,
-                    ),
-                  ),
+                  child: Image.asset(AppAssets.appLogoIcon,height: 25,fit: BoxFit.cover,),
                 ),
 
                 SizedBox(height: gap),
@@ -79,14 +74,14 @@ class LoginBottomSheet extends StatelessWidget {
                 SizedBox(height: gap * 1.5),
 
                 // ── Guest ─────────────────────────────────────────────────────
-                CommonButton(
-                  label: 'login_sheet_guest_btn'.tr,
-                  onTap: () => Get.toNamed(AppRoutes.locationPermissionScreen),
-                  backgroundColor: AppColor.blackColor,
-                  foregroundColor: Colors.white,
-                ),
+                // CommonButton(
+                //   label: 'login_sheet_guest_btn'.tr,
+                //   onTap: () => Get.toNamed(AppRoutes.locationPermissionScreen),
+                //   backgroundColor: AppColor.blackColor,
+                //   foregroundColor: Colors.white,
+                // ),
 
-                SizedBox(height: gap),
+                // SizedBox(height: gap),
 
                 // ── Phone ─────────────────────────────────────────────────────
                 CommonButton(

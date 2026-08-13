@@ -6,6 +6,8 @@ import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
 import 'package:technicianapp/constant/common_widgets/common_auth_header.dart';
 import 'package:technicianapp/constant/common_widgets/common_button.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/socket_service.dart';
 
 class LogoutScreen extends StatelessWidget {
   const LogoutScreen({super.key});
@@ -73,8 +75,10 @@ class _LogoutPanel extends StatelessWidget {
           // ── Logout button ─────────────────────────────────────────
           CommonButton(
             label: 'Logout',
-            onTap: () {
-              Get.offAllNamed(AppRoutes.loginScreen);
+            onTap: () async {
+              SocketService.instance.close();
+              await AuthService.to.clearSession();
+              Get.offAllNamed(AppRoutes.onboardingScreen);
             },
             backgroundColor: Colors.redAccent,
             foregroundColor: Colors.white,

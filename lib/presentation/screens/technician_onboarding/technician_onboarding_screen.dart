@@ -2357,99 +2357,117 @@ class _TappableStepIndicator extends StatelessWidget {
 
   static const _labels = ['Documents', 'Skills', 'Bank', 'Review'];
 
+  // Fixed width per step "column" (circle + label). Wide enough for the
+  // longest label ('Documents') on one line without widening the row.
+  static const double _stepWidth = 60;
+  static const double _circleSize = 36;
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Build a custom row so each circle is individually tappable
       const totalSteps = 4;
       // Highest step the user has reached (based on current page)
       final highestStep = controller.indicatorStep;
 
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: List.generate(totalSteps * 2 - 1, (i) {
-              if (i.isOdd) {
-                final done = (i ~/ 2) < step - 1;
-                return Expanded(
+      return Row(
+        // start (not center) so a label wrapping to 2 lines on one step
+        // never pushes that step's circle out of vertical alignment.
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(totalSteps * 2 - 1, (i) {
+          if (i.isOdd) {
+            final done = (i ~/ 2) < step - 1;
+            // Height-matched to the circle and vertically centered
+            // within it, so the connector always meets the circle's
+            // midpoint regardless of label height beneath.
+            return Expanded(
+              child: SizedBox(
+                height: _circleSize,
+                child: Center(
                   child: Container(
                     height: 2,
-                    color: done
-                        ? AppColor.blackShade1
-                        : AppColor.lightGreyColor,
+                    color:
+                    done ? AppColor.blackShade1 : AppColor.lightGreyColor,
                   ),
-                );
-              }
-              final s = i ~/ 2 + 1;
-              final done = s < step;
-              final active = s == step;
-              final unlocked = s <= highestStep;
+                ),
+              ),
+            );
+          }
 
-              return GestureDetector(
-                onTap: () => controller.tryGoToStep(s),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: (done || active)
-                        ? AppColor.blackShade1
-                        : Colors.white,
-                    border: Border.all(
+          final s = i ~/ 2 + 1;
+          final done = s < step;
+          final active = s == step;
+          final unlocked = s <= highestStep;
+
+          // Circle and its label live in the SAME Column, inside the SAME
+          // fixed-width box — so whatever width this box resolves to,
+          // both are centered relative to each other. The old two-Row
+          // layout couldn't guarantee this: each Row resolved its
+          // Expanded connector widths independently, and the label Text
+          // widgets had intrinsic (not fixed) widths, so a long label
+          // like "Documents" threw its row's layout out of step with the
+          // circle row above it.
+          return SizedBox(
+            width: _stepWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => controller.tryGoToStep(s),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: _circleSize,
+                    height: _circleSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
                       color: (done || active)
                           ? AppColor.blackShade1
-                          : AppColor.lightGreyColor,
-                      width: 1.5,
+                          : Colors.white,
+                      border: Border.all(
+                        color: (done || active)
+                            ? AppColor.blackShade1
+                            : AppColor.lightGreyColor,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: unlocked
+                          ? Text(
+                        '$s',
+                        style: AppTextStyle.labelSmallMedium.copyWith(
+                          color: (done || active)
+                              ? Colors.white
+                              : AppColor.coolGrayText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                          : Icon(
+                        Icons.lock_outline,
+                        size: 14,
+                        color: (done || active)
+                            ? Colors.white
+                            : AppColor.coolGrayText,
+                      ),
                     ),
                   ),
-                  child: Center(
-                    child: unlocked
-                        ? Text(
-                            '$s',
-                            style: AppTextStyle.labelSmallMedium.copyWith(
-                              color: (done || active)
-                                  ? Colors.white
-                                  : AppColor.coolGrayText,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        : Icon(
-                            Icons.lock_outline,
-                            size: 14,
-                            color: (done || active)
-                                ? Colors.white
-                                : AppColor.coolGrayText,
-                          ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _labels[s - 1],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyle.labelSmallRegular.copyWith(
+                    color: (done || active)
+                        ? AppColor.blackShade1
+                        : AppColor.coolGrayText,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              );
-            }),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(totalSteps * 2 - 1, (i) {
-              if (i.isOdd) return const Expanded(child: SizedBox());
-              final s = i ~/ 2 + 1;
-              final done = s < step;
-              final active = s == step;
-              return Text(
-                _labels[i ~/ 2],
-                textAlign: TextAlign.center,
-                style: AppTextStyle.labelSmallRegular.copyWith(
-                  color: (done || active)
-                      ? AppColor.blackShade1
-                      : AppColor.coolGrayText,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              );
-            }),
-          ),
-        ],
+              ],
+            ),
+          );
+        }),
       );
     });
   }

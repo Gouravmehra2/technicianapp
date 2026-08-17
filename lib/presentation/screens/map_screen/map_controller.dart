@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:technicianapp/core/services/location_manager.dart';
 
 class MapController extends GetxController {
   // ── Map controller ────────────────────────────────────────────────────────
@@ -45,7 +46,29 @@ class MapController extends GetxController {
 
   void onTap(LatLng position) {
     selectedPosition.value = position;
-    update(); // refreshes GetBuilder so markers param on GoogleMap updates
+    _fetchAddress(position);
+    update();
+  }
+
+  Future<void> _fetchAddress(LatLng position) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        selectedAddress.value = [
+          p.name,
+          p.subLocality,
+          p.locality,
+          p.administrativeArea,
+          p.country,
+        ].where((e) => e != null && e.isNotEmpty).join(', ');
+      }
+    } catch (_) {
+      selectedAddress.value = '';
+    }
   }
 
   // ── Location ──────────────────────────────────────────────────────────────
@@ -56,53 +79,20 @@ class MapController extends GetxController {
 
   Future<void> _fetchCurrentLocation({bool animateCamera = false}) async {
     isLoadingLocation.value = true;
-    try {
-      final position = await _determinePosition();
-      final latLng = LatLng(position.latitude, position.longitude);
-      currentPosition.value = latLng;
-      selectedPosition.value = latLng;
+    final result = await LocationManager.to.fetchLocation();
+    isLoadingLocation.value = false;
 
-      if (animateCamera || isMapReady.value) {
-        _animateTo(latLng, zoom: _locationZoom);
-      }
-      update(); // refresh GetBuilder to pass updated markers to GoogleMap
-    } catch (e) {
-      Get.snackbar(
-        'Location Error',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.black87,
-        colorText: Colors.white,
-        margin: const EdgeInsets.all(16),
-      );
-    } finally {
-      isLoadingLocation.value = false;
+    if (!result.success) return;
+
+    final latLng = LatLng(result.lat, result.lng);
+    currentPosition.value = latLng;
+    selectedPosition.value = latLng;
+    _fetchAddress(latLng);
+
+    if (animateCamera || isMapReady.value) {
+      _animateTo(latLng, zoom: _locationZoom);
     }
-  }
-
-  Future<Position> _determinePosition() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw 'Location services are disabled. Please enable them.';
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        throw 'Location permission was denied.';
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      throw 'Location permission is permanently denied. Please enable it from settings.';
-    }
-
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
+    update();
   }
 
   // ── Confirm ───────────────────────────────────────────────────────────────

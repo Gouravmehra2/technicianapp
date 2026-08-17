@@ -8,6 +8,8 @@ import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
 import 'package:technicianapp/core/services/social_auth_service.dart';
+import 'package:technicianapp/core/services/location_manager.dart';
+import 'package:technicianapp/core/services/location_service.dart';
 import 'package:technicianapp/core/services/socket_service.dart';
 
 // ── Per-country digit lengths (national subscriber number, digits only) ──────
@@ -206,14 +208,30 @@ class LoginController extends GetxController {
 
   void _navigateAfterLogin(UserModel user) {
     if (user.isTechnicianApproved) {
-      // Fully approved → home
-      Get.toNamed(AppRoutes.locationPermissionScreen);
+      _handleLocationAfterLogin();
     } else if (user.hasNotStartedOnboarding) {
       // Fresh account – docs never submitted → Step 1 overview
       Get.offAllNamed(AppRoutes.technicianDocOverviewScreen);
     } else {
       // Docs submitted but pending / rejected / any other status → Step 4 review
       Get.offAllNamed(AppRoutes.technicianUnderReviewScreen);
+    }
+  }
+
+  Future<void> _handleLocationAfterLogin() async {
+    final granted = await LocationManager.to.checkIfGranted();
+    if (granted) {
+      final result = await LocationManager.to.fetchLocation();
+      if (result.success) {
+        LocationService.to.setLocation(
+          address: result.address,
+          lat: result.lat,
+          lng: result.lng,
+        );
+      }
+      Get.offAllNamed(AppRoutes.dashboardScreen);
+    } else {
+      Get.toNamed(AppRoutes.locationPermissionScreen);
     }
   }
 

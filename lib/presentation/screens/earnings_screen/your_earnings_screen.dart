@@ -149,7 +149,7 @@ class _EarningsOverviewCard extends StatelessWidget {
                 child: _OverviewStatBox(
                   label: "Today's Earning",
                   icon: Icons.calendar_today_outlined,
-                  value: controller.todayEarning,
+                  value: controller.todayEarning.value,
                   badge: null,
                 ),
               ),
@@ -158,7 +158,7 @@ class _EarningsOverviewCard extends StatelessWidget {
                 child: _OverviewStatBox(
                   label: 'Pending',
                   icon: Icons.history_outlined,
-                  value: controller.pendingEarning,
+                  value: controller.pendingEarning.value,
                   badge: null,
                 ),
               ),
@@ -171,7 +171,7 @@ class _EarningsOverviewCard extends StatelessWidget {
                 child: _OverviewStatBox(
                   label: 'This Month',
                   icon: null,
-                  value: controller.thisMonthEarning,
+                  value: controller.thisMonthEarning.value,
                   badge: controller.thisMonthGrowth,
                 ),
               ),
@@ -180,7 +180,7 @@ class _EarningsOverviewCard extends StatelessWidget {
                 child: _OverviewStatBox(
                   label: 'Total Earned',
                   icon: Icons.work_outline,
-                  value: controller.totalEarned,
+                  value: controller.totalEarned.value,
                   badge: null,
                 ),
               ),
@@ -354,7 +354,7 @@ class _EarningsActivityCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    controller.thisWeekAmount,
+                    controller.thisWeekAmount.value,
                     style: const TextStyle(
                       fontFamily: 'Inter',
                       fontWeight: FontWeight.w700,

@@ -18,18 +18,29 @@ class LoginScreen extends StatelessWidget {
       init: LoginController(),
       builder: (controller) {
         return AuthLayout(
-              imagePath: AppAssets.authBackgroundImage,
-              body: loginPanel(controller),
-            );
+          imagePath: AppAssets.authBackgroundImage,
+          body: _LoginPanel(controller: controller),
+        );
       },
     );
   }
 }
 
-Widget loginPanel(LoginController controller) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Container(
+class _LoginPanel extends StatelessWidget {
+  final LoginController controller;
+
+  const _LoginPanel({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    // NOTE: no outer horizontal Padding here — AuthLayout already applies
+    // horizontal: 10 to `body`. Adding it again here doubled the inset
+    // and made the card narrower than intended.
+    return Container(
+      // clipBehavior ensures the rounded corners are actually enforced on
+      // child content (ripples, images, colored chips near the edge),
+      // not just on the background paint of the BoxDecoration.
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
@@ -79,7 +90,7 @@ Widget loginPanel(LoginController controller) {
                     CommonCountryCodePicker(
                       onChanged: controller.onCountryChanged,
                       initialSelection:
-                          controller.selectedCountry.value.code ?? 'IN',
+                      controller.selectedCountry.value.code ?? 'IN',
                       backgroundColor: Colors.white,
                       borderColor: AppColor.lightGreyColor,
                     ),
@@ -87,6 +98,9 @@ Widget loginPanel(LoginController controller) {
 
                     /// Phone number field — formatters + validator re-created
                     /// on every country change; errorText shows live feedback.
+                    /// NOTE: verify CommonCountryCodePicker reserves matching
+                    /// space for an error line so the row doesn't go lopsided
+                    /// when phoneErr is non-empty.
                     Expanded(
                       child: CommonTextFormField(
                         controller: controller.phoneController,
@@ -106,8 +120,12 @@ Widget loginPanel(LoginController controller) {
               const SizedBox(height: 14),
 
               /// Password field
+              /// NOTE: login only checks "not empty" — strongPassword()
+              /// belongs on sign-up/reset screens where a password is being
+              /// created. On login it can reject a correct existing
+              /// password before the request ever reaches the server.
               Obx(
-                () => CommonTextFormField.password(
+                    () => CommonTextFormField.password(
                   controller: controller.passwordController,
                   hintText: 'login_hint_password'.tr,
                   obscureText: !controller.isPasswordVisible.value,
@@ -115,7 +133,6 @@ Widget loginPanel(LoginController controller) {
                   validator: CommonValidators.compose([
                     CommonValidators.required(
                         message: 'validation_password_required'.tr),
-                    CommonValidators.strongPassword(),
                   ]),
                   textInputAction: TextInputAction.done,
                 ),
@@ -139,7 +156,7 @@ Widget loginPanel(LoginController controller) {
 
               /// Sign In Button
               Obx(
-                () => CommonButton(
+                    () => CommonButton(
                   label: 'login_sign_in_btn'.tr,
                   onTap: controller.handleLogin,
                   isLoading: controller.isLoading.value,
@@ -170,12 +187,12 @@ Widget loginPanel(LoginController controller) {
               ),
               const SizedBox(height: 16),
 
-              /// Social login buttonss
+              /// Social login buttons
               Row(
                 children: [
                   Expanded(
                     child: Obx(
-                      () => SocialLoginButton(
+                          () => SocialLoginButton(
                         onTap: controller.handleAppleLogin,
                         icon: Image.asset(AppAssets.appleImage, height: 20),
                         isLoading: controller.isAppleLoading.value,
@@ -186,7 +203,7 @@ Widget loginPanel(LoginController controller) {
                   const SizedBox(width: 20),
                   Expanded(
                     child: Obx(
-                      () => SocialLoginButton(
+                          () => SocialLoginButton(
                         onTap: controller.handleGoogleLogin,
                         icon: Image.asset(AppAssets.googleImage, height: 20),
                         isLoading: controller.isGoogleLoading.value,
@@ -199,6 +216,9 @@ Widget loginPanel(LoginController controller) {
               const SizedBox(height: 20),
 
               /// Sign Up link
+              /// NOTE: switched from a bare GestureDetector on 13px text
+              /// (well under the ~44px minimum recommended tap target) to
+              /// a TextButton, matching the Forgot Password pattern above.
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -207,8 +227,13 @@ Widget loginPanel(LoginController controller) {
                     style: const TextStyle(
                         fontSize: 13, color: AppColor.coolGrayText),
                   ),
-                  GestureDetector(
-                    onTap: controller.navigateToSignUp,
+                  TextButton(
+                    onPressed: controller.navigateToSignUp,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                    ),
                     child: Text(
                       'login_sign_up_link'.tr,
                       style: const TextStyle(
@@ -225,7 +250,6 @@ Widget loginPanel(LoginController controller) {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-

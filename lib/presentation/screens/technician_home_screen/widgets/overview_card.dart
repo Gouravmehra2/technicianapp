@@ -27,66 +27,79 @@ class OverviewCard extends StatelessWidget {
             children: [
               Text(
                 'Overview',
-                style: AppTextStyle.headlineLargeBold.copyWith(color: Colors.white),
+                style: AppTextStyle.headlineLargeBold.copyWith(
+                  color: Colors.white,
+                ),
               ),
-              Obx(() => GestureDetector(
-                onTap: () {},
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        controller.selectedPeriod.value,
-                        style: AppTextStyle.bodySmallMedium.copyWith(
+              Obx(
+                () => GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          controller.selectedPeriod.value,
+                          style: AppTextStyle.bodySmallMedium.copyWith(
+                            color: AppColor.blackShade1,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 18,
                           color: AppColor.blackShade1,
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.keyboard_arrow_down_rounded,
-                          size: 18, color: AppColor.blackShade1),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              )),
+              ),
             ],
           ),
           const SizedBox(height: 14),
           // Grid of 4 stats
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.3,
-            padding: EdgeInsets.zero,
-            children: [
-              _StatTile(
-                icon: Icons.folder_open_rounded,
-                value: '${controller.newRequestsCount}',
-                label: 'New Requests',
-                badge: '${controller.newRequestsCount}',
-              ),
-              _StatTile(
-                icon: Icons.description_outlined,
-                value: '${controller.activeJobsCount}',
-                label: 'Active Jobs',
-              ),
-              _StatTile(
-                icon: Icons.calendar_today_outlined,
-                value: '${controller.todayScheduleCount}',
-                label: "Today's  Schedule",
-              ),
-              _StatTile(
-                icon: Icons.bar_chart_rounded,
-                value: '${controller.rating}',
-                label: 'Rating',
-              ),
-            ],
+          Obx(
+            () => GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.3,
+              padding: EdgeInsets.zero,
+              children: [
+                _StatTile(
+                  icon: Icons.folder_open_rounded,
+                  value: '${controller.newJobs.value.length}',
+                  label: 'New Jobs',
+                  badge: '${controller.newJobs.value.length}',
+                ),
+                _StatTile(
+                  icon: Icons.description_outlined,
+                  value: '${controller.activeJobsCount.value}',
+                  label: 'Active Jobs',
+                ),
+                _StatTile(
+                  icon: Icons.calendar_today_outlined,
+                  value: '${controller.todayScheduleCount.value}',
+                  label: "Today's  Schedule",
+                ),
+                _StatTile(
+                  icon: Icons.bar_chart_rounded,
+                  value:
+                      '${controller.dashboardData?.data?.requests?.length ?? 0}',
+                  label: 'Requests',
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -114,7 +127,10 @@ class _StatTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.25),
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -128,7 +144,7 @@ class _StatTile extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColor.brownColor, size: 22,),
+                child: Icon(icon, color: AppColor.brownColor, size: 22),
               ),
               if (badge != null)
                 Positioned(
@@ -155,13 +171,20 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: AppTextStyle.headlineLargeBold.copyWith(color: Colors.white, fontSize: 22),
+            style: AppTextStyle.headlineLargeBold.copyWith(
+              color: Colors.white,
+              fontSize: 22,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: AppTextStyle.bodySmallMedium.copyWith(color: Colors.white,fontSize: 16,fontWeight: FontWeight.bold),
+            style: AppTextStyle.bodySmallMedium.copyWith(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

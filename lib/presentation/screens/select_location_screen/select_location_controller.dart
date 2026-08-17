@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_assets/app_assets.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
+import 'package:technicianapp/constant/pages/app_pages.dart';
+import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 
 /// Model for a saved address entry
@@ -85,119 +86,24 @@ class SelectLocationController extends GetxController {
   void selectAddress(int index) => selectedIndex.value = index;
 
   Future<void> onUseCurrentLocation() async {
-    final bool ok = await _ensurePermission();
-    if (!ok) return;
-
     isFetchingLocation.value = true;
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
+    final result = await LocationManager.to.fetchLocation();
+    isFetchingLocation.value = false;
 
-      final resolvedAddress = await _reverseGeocode(pos.latitude, pos.longitude);
+    if (!result.success) return;
 
-      LocationService.to.setLocation(
-        address: resolvedAddress,
-        lat: pos.latitude,
-        lng: pos.longitude,
-      );
-
-      Get.snackbar(
-        'Location Updated',
-        resolvedAddress,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-
-      Get.back(); // return to home
-    } catch (e) {
-      Get.snackbar(
-        'Location Error',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isFetchingLocation.value = false;
-    }
-  }
-
-  Future<bool> _ensurePermission() async {
-    final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      Get.snackbar(
-        'Location Off',
-        'Please enable location services on your device.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return false;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      final bool? confirmed = await Get.dialog<bool>(
-        AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text('Permission Required'),
-          content: const Text(
-            'Location access is permanently denied. '
-            'Please enable it in your device settings.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(result: false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Get.back(result: true),
-              child: const Text(
-                'Open Settings',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-        barrierDismissible: false,
-      );
-      if (confirmed == true) await Geolocator.openAppSettings();
-      return false;
-    }
-
-    if (permission == LocationPermission.denied) {
-      Get.snackbar(
-        'Permission Denied',
-        'Location permission is required to detect your area.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  static Future<String> _reverseGeocode(double lat, double lng) async {
-    try {
-      final placemarks = await placemarkFromCoordinates(lat, lng);
-      final p = placemarks.first;
-      return [
-        p.name,
-        p.subLocality,
-        p.locality,
-        p.administrativeArea,
-      ].where((s) => s != null && s.isNotEmpty).join(', ');
-    } catch (_) {
-      return '$lat, $lng';
-    }
+    LocationService.to.setLocation(
+      address: result.address,
+      lat: result.lat,
+      lng: result.lng,
+    );
+    Get.snackbar('Location Updated', result.address,
+        snackPosition: SnackPosition.BOTTOM);
+    Get.back();
   }
 
   void onAddNewAddress() {
+    Get.toNamed(AppRoutes.mapScreen);
     // TODO: navigate to add-address form
   }
 

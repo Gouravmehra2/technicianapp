@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 import '../technician_home_controller.dart';
 
 class ScheduleSection extends StatelessWidget {
@@ -48,9 +49,11 @@ class ScheduleSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ...controller.todaySchedule.map(
-          (job) => _ScheduleJobCard(job: job, controller: controller),
-        ),
+        Obx(() => Column(
+          children: controller.todaySchedule
+              .map((job) => _ScheduleJobCard(job: job, controller: controller))
+              .toList(),
+        )),
       ],
     );
   }

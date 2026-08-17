@@ -10,6 +10,7 @@ import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
 import 'package:technicianapp/core/services/language_service.dart';
+import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 import 'package:technicianapp/core/services/social_auth_service.dart';
 import 'package:technicianapp/translations/app_translations.dart';
@@ -25,7 +26,7 @@ void main() async {
   // DevicePreview(
   //   enabled: !kReleaseMode,
   //   builder: (context) => const MyApp(),
-  // ),
+  // );
 }
 
 class MyApp extends StatelessWidget {
@@ -66,10 +67,11 @@ Future<void> _registerServices() async {
   Get.putAsync(() => SocialAuthService().init(), permanent: true);
   Get.put(LanguageService(), permanent: true);
   Get.put(LocationService(), permanent: true);
+  Get.put(LocationManager(), permanent: true);
 
   // Network layer
   final dioClient = Get.put(DioClient(), permanent: true);
-  Get.put(ApiRepo(dioClient: dioClient), permanent: true);
+  Get.put(ApiRepo( dioClient), permanent: true);
 
   // Auth — awaited so SplashController can read isLoggedIn synchronously
   await Get.putAsync(() => AuthService().init(), permanent: true);

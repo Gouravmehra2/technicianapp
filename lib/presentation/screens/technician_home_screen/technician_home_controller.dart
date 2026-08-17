@@ -1,101 +1,40 @@
 import 'package:get/get.dart';
+import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dashboard_controller.dart';
 import 'package:technicianapp/presentation/screens/earnings_screen/your_earnings_screen.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
-
-class ScheduleJob {
-  final String time;
-  final String duration;
-  final String title;
-  final String jobId;
-  final String distance;
-  final String status; // 'IN PROGRESS' | 'UPCOMING'
-
-  const ScheduleJob({
-    required this.time,
-    required this.duration,
-    required this.title,
-    required this.jobId,
-    required this.distance,
-    required this.status,
-  });
-
-  /// Convert to [ScheduledJobModel] for schedule screens that expect it.
-  ScheduledJobModel toScheduledJobModel() {
-    return ScheduledJobModel(
-      time: time,
-      duration: duration,
-      title: title,
-      jobId: jobId,
-      distance: distance,
-      status: status == 'IN PROGRESS' ? JobStatus.inProgress : JobStatus.upcoming,
-    );
-  }
-}
-
-class NewJob {
-  final String title;
-  final String distance;
-  final String sector;
-  final String requestedFor;
-  final String estimatedPay;
-
-  const NewJob({
-    required this.title,
-    required this.distance,
-    required this.sector,
-    required this.requestedFor,
-    required this.estimatedPay,
-  });
-}
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 
 class TechnicianHomeController extends GetxController {
-  final String userName = 'Gourav Mehra';
-  final String totalEarnings = '\$2,450';
-  final int newRequestsCount = 12;
-  final int activeJobsCount = 5;
-  final int todayScheduleCount = 8;
-  final double rating = 4.8;
+  final ApiRepo apiRepo = Get.find<ApiRepo>();
+
+  // ── Reactive state ───────────────────────────────────────────────────────────
+  final RxString userName = ''.obs;
+  final RxString totalEarnings = '\$0'.obs;
+  final RxInt newRequestsCount = 0.obs;
+  final RxInt activeJobsCount = 0.obs;
+  final RxInt todayScheduleCount = 0.obs;
+  final RxDouble rating = 0.0.obs;
+  final RxBool isLoading = false.obs;
+
+  final RxList<ScheduleJob> todaySchedule = <ScheduleJob>[].obs;
+  final RxList<NewJob> newJobs = <NewJob>[].obs;
 
   final RxString selectedPeriod = 'This Week'.obs;
 
-  final List<ScheduleJob> todaySchedule = const [
-    ScheduleJob(
-      time: '10:30 AM',
-      duration: '1.5 hrs',
-      title: 'TV Wall Mounting',
-      jobId: '#1024',
-      distance: '1.8 km',
-      status: 'IN PROGRESS',
-    ),
-    ScheduleJob(
-      time: '4:30 PM',
-      duration: '12.5 hrs',
-      title: 'AC Installation',
-      jobId: '#1029',
-      distance: '4.8 km',
-      status: 'UPCOMING',
-    ),
-  ];
+  DashboardModel? dashboardData;
+  NewJobsModel? jobsData;
 
-  final List<NewJob> newJobs = const [
-    NewJob(
-      title: 'AC Installation',
-      distance: '2.6 km away',
-      sector: 'Sector 14',
-      requestedFor: 'Today, 2:00 PM',
-      estimatedPay: '\$850',
-    ),
-    NewJob(
-      title: 'TV Mounting',
-      distance: '1.2 km away',
-      sector: 'Sector 7',
-      requestedFor: 'Today, 5:00 PM',
-      estimatedPay: '\$450',
-    ),
-  ];
+  @override
+  void onInit() {
+    super.onInit();
+    hitDashboardApi();
+    hitJobsApi();
+  }
 
   String get greeting {
     final hour = DateTime.now().hour;
@@ -104,35 +43,33 @@ class TechnicianHomeController extends GetxController {
     return 'Good Evening,';
   }
 
-  /// Reactive address from LocationService — updates header automatically.
   RxString get currentLocation => LocationService.to.confirmedAddress;
 
-  // ── Earnings ────────────────────────────────────────────────────────────────
-
-  void onEarningsTapped() {
-    Get.to(() => const YourEarningsScreen());
+  String _formatDate(dynamic raw) {
+    if (raw == null) return 'TBD';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '${dt.day}/${dt.month} $hour:$min $period';
+    } catch (_) {
+      return raw.toString();
+    }
   }
 
-  // ── Location ─────────────────────────────────────────────────────────────────
+  // ── Earnings ─────────────────────────────────────────────────────────────────
+  void onEarningsTapped() => Get.to(() => const YourEarningsScreen());
 
-  void onLocationTapped() {
-    Get.toNamed(AppRoutes.selectLocationScreen);
-  }
+  // ── Location ──────────────────────────────────────────────────────────────────
+  void onLocationTapped() => Get.toNamed(AppRoutes.selectLocationScreen);
 
-  // ── Notifications ────────────────────────────────────────────────────────────
+  // ── Notifications ─────────────────────────────────────────────────────────────
+  void onNotificationTapped() => Get.toNamed(AppRoutes.notificationScreen);
 
-  void onNotificationTapped() {
-    Get.toNamed(AppRoutes.notificationScreen);
-  }
+  // ── Today's Schedule ──────────────────────────────────────────────────────────
+  void onViewAllSchedule() => _switchDashboardTab(2);
 
-  // ── Today's Schedule ─────────────────────────────────────────────────────────
-
-  /// "View All" → switch to the Bookings tab (index 2) in the dashboard.
-  void onViewAllSchedule() {
-    _switchDashboardTab(2);
-  }
-
-  /// Navigate button on a schedule card → navigation screen for that job.
   void onNavigateTapped(ScheduleJob job) {
     Get.toNamed(
       AppRoutes.scheduleJobNavigationScreen,
@@ -140,12 +77,9 @@ class TechnicianHomeController extends GetxController {
     );
   }
 
-  /// Contact Support button on a schedule card → support screen.
-  void onContactSupportTapped(ScheduleJob job) {
-    Get.toNamed(AppRoutes.supportScreen);
-  }
+  void onContactSupportTapped(ScheduleJob job) =>
+      Get.toNamed(AppRoutes.supportScreen);
 
-  /// "Click to view Details" on a schedule card → job detail screen.
   void onViewDetailsTapped(ScheduleJob job) {
     Get.toNamed(
       AppRoutes.scheduleJobDetailScreen,
@@ -153,40 +87,91 @@ class TechnicianHomeController extends GetxController {
     );
   }
 
-  // ── New Jobs ─────────────────────────────────────────────────────────────────
+  // ── New Jobs ──────────────────────────────────────────────────────────────────
+  void onViewAllNewJobs() => _switchDashboardTab(2);
 
-  /// "View details" header link on new jobs section → Bookings tab.
-  void onViewAllNewJobs() {
-    _switchDashboardTab(2);
-  }
+  void onAcceptJob(NewJob job) => _switchDashboardTab(2);
 
-  /// Accept a new job — switch to Bookings tab to manage it.
-  void onAcceptJob(NewJob job) {
-    _switchDashboardTab(2);
-  }
-
-  /// Decline a new job (no navigation needed, just a placeholder).
   void onDeclineJob(NewJob job) {}
 
-  /// "Click to view Details" on a new job card → job detail screen.
   void onViewNewJobDetails(NewJob job) {
-    // Map new job data into a ScheduledJobModel for the detail screen.
     final model = ScheduledJobModel(
       time: job.requestedFor,
       duration: 'TBD',
       title: job.title,
-      jobId: 'NEW',
+      jobId: job.id,
       distance: job.distance,
       status: JobStatus.upcoming,
     );
     Get.toNamed(AppRoutes.scheduleJobDetailScreen, arguments: model);
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  /// Switch the bottom-nav tab in the parent [DashboardController].
   void _switchDashboardTab(int index) {
     final dashController = Get.find<DashboardController>();
     dashController.changeIndex(index: index);
+  }
+
+  //api calling
+  void hitDashboardApi() async {
+    try {
+      isLoading.value = true;
+      await apiRepo.getTechnicianDashboardApi().then((value) {
+        dashboardData = value;
+        if (value.success != true) return;
+        final tech = value.data?.technician;
+        userName.value = tech?.name ?? '';
+        totalEarnings.value = '\$${tech?.totalEarnings ?? 0}';
+
+        final requests = value.data?.requests ?? [];
+        final accepted = requests
+            .where((r) => r.status == 'accepted' && r.job != null)
+            .toList();
+
+        todaySchedule.value = accepted.map((r) {
+          final job = r.job!;
+          return ScheduleJob(
+            time: _formatDate(job.scheduledDate ?? job.serviceDate),
+            duration: job.estimatedTime ?? '',
+            title: job.title ?? '',
+            jobId: '#${(job.sId ?? '').substring(0, 6)}',
+            distance: job.location ?? '',
+            status: job.status == 'in-progress' ? 'IN PROGRESS' : 'UPCOMING',
+          );
+        }).toList();
+
+        activeJobsCount.value = accepted.length;
+        todayScheduleCount.value = accepted.length;
+        newRequestsCount.value = requests
+            .where((r) => r.status == 'pending')
+            .length;
+      });
+    } catch (e) {
+      AppSnackbar.error(e.toString(), title: 'Error');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  void hitJobsApi() async {
+    try {
+      await apiRepo.getTechnicianJobsApi().then((value) {
+        jobsData = value;
+        if (value.success != true) return;
+        newJobs.value = (value.data?.jobs ?? []).map((job) {
+          return NewJob(
+            id: job.sId ?? '',
+            title: job.title ?? '',
+            distance: job.location ?? '',
+            sector: job.category ?? '',
+            requestedFor: _formatDate(
+              job.scheduledDate ?? job.serviceDate ?? job.deadline,
+            ),
+            estimatedPay: '\$${job.budget ?? 0}',
+          );
+        }).toList();
+      });
+    } catch (e) {
+      AppSnackbar.error(e.toString(), title: 'Error');
+    }
   }
 }

@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dashboard_controller.dart';
 import 'package:technicianapp/presentation/screens/dashboard/widgets/custom_bottom_navigation_tab.dart';
-import 'package:technicianapp/presentation/screens/home_screen/home_screen.dart';
 import 'package:technicianapp/presentation/screens/job_screen/job_screen.dart';
 import 'package:technicianapp/presentation/screens/profile_screen/profile_screen.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_screen.dart';
-import 'package:technicianapp/presentation/screens/service_screen/service_screen.dart';
-import 'package:technicianapp/presentation/screens/splash_screen/splash_screen.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/technician_home_screen.dart';
 
 class DashboardScreen extends StatelessWidget {

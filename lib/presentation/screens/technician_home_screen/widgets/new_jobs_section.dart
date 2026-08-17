@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 import '../technician_home_controller.dart';
 
 class NewJobsSection extends StatelessWidget {
@@ -37,7 +39,7 @@ class NewJobsSection extends StatelessWidget {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: IntrinsicHeight(
+          child: Obx(() => IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -50,7 +52,7 @@ class NewJobsSection extends StatelessWidget {
                 ],
               ],
             ),
-          ),
+          )),
         ),
       ],
     );

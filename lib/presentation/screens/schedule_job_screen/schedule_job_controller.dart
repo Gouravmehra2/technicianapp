@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/api_repo/api_repo.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 
 enum JobStatus { inProgress, upcoming, completed }
 
@@ -26,15 +28,10 @@ class ScheduledJobModel {
 enum ChecklistStep { reachLocation, confirmJob, completeService, testHandover, collectPayment }
 
 class ScheduleJobController extends GetxController {
+  final _api = Get.find<ApiRepo>();
   final selectedTab = 0.obs; // 0=Today, 1=Tomorrow, 2=Week
 
-  final jobs = <ScheduledJobModel>[
-    const ScheduledJobModel(time: '10:30 AM', duration: '1.5 hrs', title: 'TV Wall Mounting', jobId: '#1024', distance: '1.8 km', status: JobStatus.inProgress),
-    const ScheduledJobModel(time: '4:30 PM', duration: '1.5 hrs', title: 'TV Wall Mounting', jobId: '#1024', distance: '1.8 km', status: JobStatus.upcoming),
-    const ScheduledJobModel(time: '10:00 PM', duration: '1.5 hrs', title: 'TV Wall Mounting', jobId: '#1024', distance: '1.8 km', status: JobStatus.upcoming),
-    const ScheduledJobModel(time: '9:00 AM', duration: '15 min', title: 'Print Sheets', jobId: '#1024', distance: '1.8 km', status: JobStatus.completed),
-    const ScheduledJobModel(time: '6:00 AM', duration: '1.5 hrs', title: 'TV Wall Mounting', jobId: '#1024', distance: '1.8 km', status: JobStatus.completed),
-  ];
+  final jobs = <ScheduledJobModel>[].obs;
 
   // Job in progress state
   final isPaused = false.obs;
@@ -70,7 +67,46 @@ class ScheduleJobController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    loadSchedule();
     _startTimer();
+  }
+
+  Future<void> loadSchedule() async {
+    try {
+      final dashboard = await _api.getTechnicianDashboardApi();
+      if (dashboard.success == true) {
+        final requests = dashboard.data?.requests ?? [];
+        final accepted = requests.where((r) => r.status == 'accepted' && r.job != null);
+        jobs.value = accepted.map((r) {
+          final job = r.job!;
+          return ScheduledJobModel(
+            time: _formatDate(job.scheduledDate ?? job.serviceDate),
+            duration: job.estimatedTime ?? '',
+            title: job.title ?? '',
+            jobId: '#${(job.sId ?? '').substring(0, 6)}',
+            distance: job.location ?? '',
+            status: job.status == 'in-progress'
+                ? JobStatus.inProgress
+                : job.status == 'completed'
+                    ? JobStatus.completed
+                    : JobStatus.upcoming,
+          );
+        }).toList();
+      }
+    } catch (_) {}
+  }
+
+  String _formatDate(dynamic raw) {
+    if (raw == null) return 'TBD';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$min $period';
+    } catch (_) {
+      return raw.toString();
+    }
   }
 
   void _startTimer() {

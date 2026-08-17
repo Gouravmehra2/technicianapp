@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/end_point/end_point.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 
 class ApiRepo {
   final DioClient dioClient;
 
-  ApiRepo({required this.dioClient});
+  ApiRepo( this.dioClient);
 
   Future<Response> loginApi(Map<String, dynamic> data) async {
     try {
@@ -261,6 +263,26 @@ class ApiRepo {
   Future<Response> getMeApi() async {
     try {
       return await dioClient.get(ApiEndpoints.me);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Fetch technician dashboard — GET /api/technician/dashboard
+    Future<DashboardModel> getTechnicianDashboardApi() async {
+    try {
+      final response = await dioClient.get(ApiEndpoints.technicianDashboard);
+      return DashboardModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Fetch open jobs for technician — GET /api/technician/jobs
+  Future<NewJobsModel> getTechnicianJobsApi() async {
+    try {
+      final response = await dioClient.get(ApiEndpoints.technicianJobs);
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/api_repo/api_repo.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -53,186 +56,109 @@ class JobModel {
 // ─── Controller ───────────────────────────────────────────────────────────────
 
 class JobController extends GetxController {
+  final _api = Get.find<ApiRepo>();
+
   final selectedTab = JobTabType.newJobs.obs;
   final searchQuery = ''.obs;
   final searchController = TextEditingController();
+  final isLoading = false.obs;
 
-  // ── New Jobs ──────────────────────────────────────────────────────────────
-  final newJobs = <JobModel>[
-    const JobModel(
-      id: 'j1',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
+  final newJobs = <JobModel>[].obs;
+  final activeJobs = <JobModel>[].obs;
+  final completedJobs = <JobModel>[].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadJobs();
+  }
+
+  Future<void> loadJobs() async {
+    isLoading.value = true;
+    try {
+      final results = await Future.wait([
+        _api.getTechnicianJobsApi(),
+        _api.getTechnicianDashboardApi(),
+      ]);
+
+      // ── Open jobs → New Jobs tab ──────────────────────────────────────────
+      final jobsModel = results[0] as NewJobsModel;
+      if (jobsModel.success == true) {
+        newJobs.value = (jobsModel.data?.jobs ?? [])
+            .map((job) => _mapJobFromModel(job, showDeclineAccept: true))
+            .toList();
+      }
+
+      // ── Dashboard requests → Active / Completed tabs ──────────────────────
+      final dashboard = results[1] as DashboardModel;
+      if (dashboard.success == true) {
+        final requests = dashboard.data?.requests ?? [];
+        final active = <JobModel>[];
+        final completed = <JobModel>[];
+        for (final r in requests) {
+          final job = r.job;
+          if (job == null) continue;
+          final model = _mapJobFromDashboard(
+            job,
+            showRequestPayment: job.jobCompletedAt != null && job.status != 'completed',
+          );
+          if (job.status == 'completed') {
+            completed.add(model);
+          } else if (r.status == 'accepted') {
+            active.add(model);
+          }
+        }
+        activeJobs.value = active;
+        completedJobs.value = completed;
+      }
+    } catch (_) {
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  JobModel _mapJobFromModel(Jobs job, {bool showDeclineAccept = false}) {
+    return JobModel(
+      id: job.sId ?? '',
+      title: job.title ?? '',
+      category: job.category ?? '',
+      distance: job.location ?? '',
+      location: job.location ?? '',
+      requestedTime: _formatDate(job.scheduledDate ?? job.serviceDate ?? job.deadline),
       priceType: JobPriceType.fixed,
-      priceLabel: 'Fixed: \$850',
-      badge: JobBadgeType.newBadge,
-      showDeclineAccept: true,
-    ),
-    const JobModel(
-      id: 'j2',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.installation,
-      showDeclineAccept: true,
-    ),
-    const JobModel(
-      id: 'j3',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      additionalNote: '(Additional Gas Fueling \$100)',
-      badge: JobBadgeType.security,
-      showDeclineAccept: true,
-    ),
-    const JobModel(
-      id: 'j4',
-      title: 'Cleaning Room',
-      category: 'Cleaning',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.customQuote,
-      priceLabel: 'Custom Quote',
-      badge: JobBadgeType.cleaning,
-      showDeclineAccept: true,
-      isCustomQuote: true,
-    ),
-  ].obs;
+      priceLabel: '\$${job.budget ?? 0}',
+      badge: job.status == 'in-progress' ? JobBadgeType.active : JobBadgeType.newBadge,
+      showDeclineAccept: showDeclineAccept,
+    );
+  }
 
-  // ── Active Jobs ───────────────────────────────────────────────────────────
-  final activeJobs = <JobModel>[
-    const JobModel(
-      id: 'a1',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'a2',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'a3',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'a4',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Quoted: \$600 | Revised: \$560',
-      badge: JobBadgeType.updated,
-      showDeclineAccept: true,
-    ),
-    const JobModel(
-      id: 'a5',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Quoted: \$600 | Revised: \$560',
-      badge: JobBadgeType.updated,
-      showDeclineAccept: true,
-    ),
-    const JobModel(
-      id: 'a6',
-      title: 'Gas Filling',
-      category: 'Gas',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      additionalNote: '(Additional Gas Fueling \$100)',
-      badge: JobBadgeType.underProcessing,
-      showCancelRequest: true,
-    ),
-  ].obs;
+  JobModel _mapJobFromDashboard(Job job, {bool showRequestPayment = false}) {
+    return JobModel(
+      id: job.sId ?? '',
+      title: job.title ?? '',
+      category: job.category ?? '',
+      distance: job.location ?? '',
+      location: job.location ?? '',
+      requestedTime: _formatDate(job.scheduledDate ?? job.serviceDate ?? job.deadline),
+      priceType: JobPriceType.fixed,
+      priceLabel: '\$${job.budget ?? 0}',
+      badge: job.status == 'in-progress' ? JobBadgeType.active : JobBadgeType.newBadge,
+      showRequestPayment: showRequestPayment,
+    );
+  }
 
-  // ── Completed Jobs ────────────────────────────────────────────────────────
-  final completedJobs = <JobModel>[
-    const JobModel(
-      id: 'c1',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: '9 Aug,2026 | 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'c2',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: '1 Aug,2026 | 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'c3',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: '24 July,2026 | 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-    ),
-    const JobModel(
-      id: 'c4',
-      title: 'AC Installation',
-      category: 'AC',
-      distance: '2.6 km away',
-      location: 'Sector 14',
-      requestedTime: 'Today, 2:00 PM',
-      priceType: JobPriceType.estimated,
-      priceLabel: 'Est. \$850 - \$950',
-      badge: JobBadgeType.active,
-      showRequestPayment: true,
-    ),
-  ].obs;
+  String _formatDate(dynamic raw) {
+    if (raw == null) return 'TBD';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '${dt.day}/${dt.month} $hour:$min $period';
+    } catch (_) {
+      return raw.toString();
+    }
+  }
 
   List<JobModel> get currentJobs {
     final q = searchQuery.value.toLowerCase();

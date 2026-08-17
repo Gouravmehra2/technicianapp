@@ -39,6 +39,13 @@ class ApiEndpoints {
   static const String home = '/home';
 
   // =========================
+  // Technician
+  // =========================
+
+  static const String technicianDashboard = '/api/technician/dashboard';
+  static const String technicianJobs = '/api/technician/jobs';
+
+  // =========================
   // Services
   // =========================
 

@@ -1,11 +1,10 @@
 import 'package:flutter/cupertino.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 
 class SplashController extends GetxController {
@@ -22,33 +21,15 @@ class SplashController extends GetxController {
   }
 
   Future<void> _fetchLocationIfGranted() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) return;
+    final result = await LocationManager.to.fetchIfGranted();
+    if (result == null || !result.success) return;
 
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
-      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
-      final p = placemarks.first;
-      final address = [
-        p.name,
-        p.subLocality,
-        p.locality,
-        p.administrativeArea,
-      ].where((s) => s != null && s.isNotEmpty).join(', ');
-
-      locationText.value = address;
-      LocationService.to.setLocation(
-        address: address,
-        lat: pos.latitude,
-        lng: pos.longitude,
-      );
-    } catch (_) {}
+    locationText.value = result.address;
+    LocationService.to.setLocation(
+      address: result.address,
+      lat: result.lat,
+      lng: result.lng,
+    );
   }
 
   Future<void> _navigate() async {

@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:technicianapp/core/api_repo/api_repo.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 
 // ─── Models ──────────────────────────────────────────────────────────────────
 
@@ -83,12 +85,14 @@ class EarningDetail {
 // ─── Controller ──────────────────────────────────────────────────────────────
 
 class EarningsController extends GetxController {
+  final _api = Get.find<ApiRepo>();
+
   // Earnings overview stats
-  final String todayEarning = '\$360.00';
-  final String pendingEarning = '\$220.00';
-  final String thisMonthEarning = '\$754.00';
-  final String thisMonthGrowth = '+54.65%';
-  final String totalEarned = '\$3,603.00';
+  final RxString todayEarning = '\$0.00'.obs;
+  final RxString pendingEarning = '\$0.00'.obs;
+  final RxString thisMonthEarning = '\$0.00'.obs;
+  final String thisMonthGrowth = '+0%';
+  final RxString totalEarned = '\$0.00'.obs;
 
   // Period selector
   final RxString selectedPeriod = 'Weekly'.obs;
@@ -98,35 +102,13 @@ class EarningsController extends GetxController {
     0.45, 0.35, 1.0, 0.50, 0.0, 0.60, 0.0,
   ];
   final List<String> weekDayLabels = const ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  final int activeBarIndex = 2; // Tuesday highlighted
+  final int activeBarIndex = 2;
 
-  final String thisWeekAmount = '\$360.00';
-  final String thisWeekGrowth = '+54.65%';
+  final RxString thisWeekAmount = '\$0.00'.obs;
+  final String thisWeekGrowth = '+0%';
 
-  // Recent transactions
-  final List<RecentTransaction> recentTransactions = const [
-    RecentTransaction(
-      title: 'Cash Withdraw',
-      dateTime: 'Sep 10, 2025 • 10:30 AM',
-      amount: '+\$443.00',
-      isPositive: true,
-      status: TransactionStatus.completed,
-    ),
-    RecentTransaction(
-      title: 'Withdrawal to Paypal',
-      dateTime: 'Sep 10, 2025 • 09:15 AM',
-      amount: '-\$443.00',
-      isPositive: false,
-      status: TransactionStatus.failed,
-    ),
-    RecentTransaction(
-      title: 'TV Wall Mounting',
-      dateTime: 'Sep 9, 2025 • 02:45 PM',
-      amount: '+\$120.00',
-      isPositive: true,
-      status: TransactionStatus.completed,
-    ),
-  ];
+  // Recent transactions — built from completed requests
+  final recentTransactions = <RecentTransaction>[].obs;
 
   // Earning History
   final RxString selectedHistoryTab = 'All'.obs;
@@ -298,6 +280,68 @@ class EarningsController extends GetxController {
       ),
     ],
   );
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadEarnings();
+  }
+
+  Future<void> loadEarnings() async {
+    try {
+      final results = await Future.wait([
+        _api.getMeApi(),
+        _api.getTechnicianDashboardApi(),
+      ]);
+
+      // ── /me → totals ────────────────────────────────────────────────────────────────────
+      final meData = (results[0] as dynamic).data;
+      if (meData['success'] == true) {
+        final user = meData['data']['user'];
+        final total = user['totalEarnings'] ?? 0;
+        final withdrawn = user['totalWithdrawn'] ?? 0;
+        final available = total - withdrawn;
+        totalEarned.value = '\$$total';
+        thisWeekAmount.value = '\$$available';
+        pendingEarning.value = '\$$available';
+        totalEarned.value = '\$$total';
+      }
+
+      // ── dashboard → recent transactions from completed requests ────────────────────
+      final dashboard = results[1] as DashboardModel;
+      if (dashboard.success == true) {
+        final requests = dashboard.data?.requests ?? [];
+        recentTransactions.value = requests
+            .where((r) => r.amountEarned != null && r.amountEarned! > 0)
+            .take(5)
+            .map((r) {
+          final earned = r.amountEarned ?? 0;
+          final date = _formatDate(r.updatedAt ?? r.createdAt);
+          return RecentTransaction(
+            title: r.job?.title ?? 'Job',
+            dateTime: date,
+            amount: '+\$$earned',
+            isPositive: true,
+            status: TransactionStatus.completed,
+          );
+        }).toList();
+      }
+    } catch (_) {}
+  }
+
+  String _formatDate(dynamic raw) {
+    if (raw == null) return '';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '\${months[dt.month - 1]} \${dt.day}, \${dt.year} • $hour:$min $period';
+    } catch (_) {
+      return raw.toString();
+    }
+  }
 
   void onViewAllTransactions() {}
   void onHistoryItemTapped(EarningHistoryItem item) {

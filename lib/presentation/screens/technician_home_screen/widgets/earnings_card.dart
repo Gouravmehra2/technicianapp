@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_assets/app_assets.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
@@ -40,17 +41,17 @@ class EarningsCard extends StatelessWidget {
               'Total Earnings:',
               style: AppTextStyle.titleMediumSemiBold.copyWith(
                 color: AppColor.blackShade1,
-                fontSize: 20
+                fontSize: 20,
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              controller.totalEarnings,
+            Obx(() => Text(
+              controller.totalEarnings.value,
               style: AppTextStyle.titleLargeBold.copyWith(
                 color: AppColor.brownColor,
                 fontSize: 24,
               ),
-            ),
+            )),
             const Spacer(),
             const Icon(
               Icons.arrow_forward,

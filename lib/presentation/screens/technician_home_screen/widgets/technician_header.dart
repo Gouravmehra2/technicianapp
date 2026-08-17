@@ -43,13 +43,13 @@ class TechnicianHeader extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      controller.userName,
+                    Obx(() => Text(
+                      controller.userName.value,
                       style: AppTextStyle.titleLargeBold.copyWith(
                         color: Colors.white,
                         fontSize: 20,
                       ),
-                    ),
+                    )),
                   ],
                 ),
                 const SizedBox(height: 1),

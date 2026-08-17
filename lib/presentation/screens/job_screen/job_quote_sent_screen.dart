@@ -48,7 +48,7 @@ class JobQuoteSentScreen extends StatelessWidget {
             GestureDetector(
               onTap: () => Get.offNamedUntil(
                 AppRoutes.jobScreen,
-                (route) => route.settings.name == AppRoutes.technicianHomeScreen,
+                (route) => route.settings.name == AppRoutes.dashboardScreen,
               ),
               child: Container(
                 width: double.infinity,

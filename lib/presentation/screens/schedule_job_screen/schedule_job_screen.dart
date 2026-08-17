@@ -58,12 +58,12 @@ class ScheduleJobScreen extends GetView<ScheduleJobController> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: ListView.separated(
+            child: Obx(() => ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               itemCount: controller.jobs.length,
               separatorBuilder: (_, __) => const SizedBox(height: 14),
               itemBuilder: (_, i) => _JobCard(job: controller.jobs[i], controller: controller),
-            ),
+            )),
           ),
         ],
       ),

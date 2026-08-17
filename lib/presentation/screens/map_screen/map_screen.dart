@@ -17,7 +17,7 @@ class MapScreen extends StatelessWidget {
         return MyScaffold(
           body: Stack(
             children: [
-              // _buildMap(controller),
+              _buildMap(controller),
               _buildTopBar(),
               _buildCurrentLocationButton(controller),
               _buildBottomSheet(controller),
@@ -27,6 +27,7 @@ class MapScreen extends StatelessWidget {
       },
     );
   }
+
 
   // ── Map ───────────────────────────────────────────────────────────────────
 
@@ -155,11 +156,14 @@ class MapScreen extends StatelessWidget {
             const SizedBox(height: 6),
 
             Obx(() {
+              final address = controller.selectedAddress.value;
               final pos = controller.selectedPosition.value;
               return Text(
-                pos != null
-                    ? '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}'
-                    : 'map_tap_hint'.tr,
+                address.isNotEmpty
+                    ? address
+                    : pos != null
+                        ? '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}'
+                        : 'map_tap_hint'.tr,
                 style: AppTextStyle.titleMediumSemiBold.copyWith(
                   color: AppColor.blackShade1,
                 ),

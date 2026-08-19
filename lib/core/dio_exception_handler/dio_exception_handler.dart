@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:get/get.dart';
+import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/services/auth_service.dart';
 
 import 'api_exception.dart';
 
 class DioExceptionHandler {
-  static ApiException handle(DioException exception) {
+  static Object handle(DioException exception) {
     switch (exception.type) {
       case DioExceptionType.connectionTimeout:
         return const ApiException(
@@ -48,9 +51,9 @@ class DioExceptionHandler {
     }
   }
 
-  static ApiException _handleBadResponse(
+  static Future<ApiException> _handleBadResponse(
       DioException exception,
-      ) {
+      ) async {
     final response = exception.response;
 
     final statusCode = response?.statusCode;
@@ -74,6 +77,11 @@ class DioExceptionHandler {
         );
 
       case 401:
+        final _authService = AuthService.to;
+        if(_authService.token.value !=null){
+          await _authService.clearSession();
+          Get.offAllNamed(AppRoutes.loginScreen);
+        }
         return ApiException(
           message: 'Unauthorized. Please login again.',
           statusCode: statusCode,

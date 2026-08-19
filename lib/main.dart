@@ -9,6 +9,7 @@ import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 import 'package:technicianapp/core/services/language_service.dart';
 import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
@@ -68,6 +69,9 @@ Future<void> _registerServices() async {
   Get.put(LanguageService(), permanent: true);
   Get.put(LocationService(), permanent: true);
   Get.put(LocationManager(), permanent: true);
+
+  // Firebase — initialised before everything else so FCM is ready early.
+  await Get.putAsync(() => FirebaseService().init(), permanent: true);
 
   // Network layer
   final dioClient = Get.put(DioClient(), permanent: true);

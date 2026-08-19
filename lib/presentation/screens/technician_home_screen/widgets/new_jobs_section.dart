@@ -131,14 +131,14 @@ class _NewJobCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => controller.onDeclineJob(job),
+                  onPressed: () => controller.onCounterOffer(job),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColor.brownAccentPrimary,
                     side: const BorderSide(color: AppColor.brownAccentPrimary),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  child: Text('Decline', style: AppTextStyle.buttonSmall.copyWith(color: AppColor.brownAccentPrimary)),
+                  child: Text('Counter Offer', style: AppTextStyle.buttonSmall.copyWith(color: AppColor.brownAccentPrimary)),
                 ),
               ),
               const SizedBox(width: 10),

@@ -44,7 +44,7 @@ class TechnicianHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Obx(() => Text(
-                      controller.userName.value,
+                      controller.userName.value.capitalizeFirst ?? '',
                       style: AppTextStyle.titleLargeBold.copyWith(
                         color: Colors.white,
                         fontSize: 20,

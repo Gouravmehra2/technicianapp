@@ -116,4 +116,20 @@ class DioClient {
       throw DioExceptionHandler.handle(e);
     }
   }
+
+  Future<Response> patch(
+    String path, {
+    dynamic data,
+    Options? options,
+  }) async {
+    try {
+      return await dio.patch(
+        path,
+        data: data,
+        options: options,
+      );
+    } on DioException catch (e) {
+      throw DioExceptionHandler.handle(e);
+    }
+  }
 }

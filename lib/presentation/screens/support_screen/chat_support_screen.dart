@@ -116,27 +116,30 @@ class ChatSupportScreen extends GetView<ChatSupportController> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
-              children: ['Track Refund', 'Talk to Expert', 'Billing FAQ'].map((label) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColor.lightGreyColor),
+              children: [
+                ...['Track Refund', 'Talk to Expert', 'Billing FAQ'].map((label) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColor.lightGreyColor),
+                        ),
+                        child: Text(label,
+                            style: AppTextStyle.bodySmallMedium
+                                .copyWith(color: AppColor.blackShade1)),
                       ),
-                      child: Text(label,
-                          style: AppTextStyle.bodySmallMedium
-                              .copyWith(color: AppColor.blackShade1)),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                })
+              ],
             ),
           ),
+          // Counter Offer Section
 
           // Input bar
           Container(

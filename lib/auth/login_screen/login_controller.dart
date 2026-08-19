@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 import 'package:technicianapp/core/services/social_auth_service.dart';
 import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
@@ -192,12 +195,16 @@ class LoginController extends GetxController {
       );
 
       final data = response.data as Map<String, dynamic>;
-      final token = data['token']?.toString() ?? '';
+      final token = data['accessToken']?.toString() ?? '';
       final userData = UserModel.fromJson(data);
       await _authService.saveSession(authToken: token, userData: userData);
       socketService.connectAndJoin(
         technicianId: data['data']?['user']['_id']?.toString(),
       );
+
+      // Register the FCM/APNs token with the backend after a successful login.
+      await _registerDeviceToken();
+
       _navigateAfterLogin(userData);
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'login_failed'.tr);
@@ -206,8 +213,7 @@ class LoginController extends GetxController {
     }
   }
 
-  void _navigateAfterLogin(UserModel user) {
-    if (user.isTechnicianApproved) {
+  void _navigateAfterLogin(UserModel user) {    if (user.isTechnicianApproved) {
       _handleLocationAfterLogin();
     } else if (user.hasNotStartedOnboarding) {
       // Fresh account – docs never submitted → Step 1 overview

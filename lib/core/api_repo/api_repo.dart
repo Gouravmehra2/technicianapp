@@ -1,13 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/end_point/end_point.dart';
+import 'package:technicianapp/presentation/screens/counter_offer_screen/model/charges_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 
 class ApiRepo {
   final DioClient dioClient;
 
-  ApiRepo( this.dioClient);
+  ApiRepo(this.dioClient);
 
   Future<Response> loginApi(Map<String, dynamic> data) async {
     try {
@@ -268,8 +269,30 @@ class ApiRepo {
     }
   }
 
+  /// Register or update the device push token on the server.
+  ///
+  /// Call this:
+  ///   • After a successful login
+  ///   • When the FCM token is refreshed (`FirebaseService.onTokenUpdated`)
+  ///   • On app start if the user is already logged in
+  ///
+  /// [platform] should be `"android"` or `"ios"`.
+  Future<Response> updateFcmTokenApi({
+    required String token,
+    required String platform,
+  }) async {
+    try {
+      return await dioClient.patch(
+        ApiEndpoints.updateFcmToken,
+        data: {'fcmToken': token, 'platform': platform},
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Fetch technician dashboard — GET /api/technician/dashboard
-    Future<DashboardModel> getTechnicianDashboardApi() async {
+  Future<DashboardModel> getTechnicianDashboardApi() async {
     try {
       final response = await dioClient.get(ApiEndpoints.technicianDashboard);
       return DashboardModel.fromJson(response.data as Map<String, dynamic>);
@@ -347,6 +370,77 @@ class ApiRepo {
         ApiEndpoints.uploadDocuments,
         data: formData,
         options: Options(contentType: 'multipart/form-data'),
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── Counter Offer / Charges APIs ─────────────────────────────────────────────
+
+  /// POST /api/technician/jobs/:jobId/request
+  ///
+  /// Body: { note?, fixedPrice?, charges?: [{label, description, amount}] }
+  /// Returns the created TechnicianJobRequest with its `_id` as `requestId`.
+  Future<Response> requestJobApi({
+    required String jobId,
+    String? note,
+    double? fixedPrice,
+    List<Map<String, dynamic>>? charges,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {};
+      if (note != null && note.isNotEmpty) body['note'] = note;
+      if (fixedPrice != null && fixedPrice > 0) body['fixedPrice'] = fixedPrice;
+      if (charges != null && charges.isNotEmpty) body['charges'] = charges;
+      return await dioClient.post(ApiEndpoints.requestJob(jobId), data: body);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/requests/:requestId/status
+  ///
+  /// Returns full status: charges grouped by state + invoice + next-action hint.
+  Future<RequestStatusModel> getRequestStatusApi(String requestId) async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.requestStatus(requestId),
+      );
+      return RequestStatusModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/technician/requests/:requestId/charges
+  ///
+  /// Body: { "charges": [{ "label", "description", "amount" }] }
+  Future<Response> submitChargesApi({
+    required String requestId,
+    required List<Map<String, dynamic>> charges,
+  }) async {
+    try {
+      return await dioClient.post(
+        ApiEndpoints.submitCharges(requestId),
+        data: {'charges': charges},
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/technician/charges/:chargeId/respond
+  ///
+  /// Body: { "action": "accept" | "reject" }
+  Future<Response> respondToChargeApi({
+    required String chargeId,
+    required String action, // 'accept' or 'reject'
+  }) async {
+    try {
+      return await dioClient.patch(
+        ApiEndpoints.respondToCharge(chargeId),
+        data: {'action': action},
       );
     } catch (e) {
       rethrow;

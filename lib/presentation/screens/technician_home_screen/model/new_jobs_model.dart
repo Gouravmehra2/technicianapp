@@ -316,6 +316,9 @@ class NewJob {
   final String sector;
   final String requestedFor;
   final String estimatedPay;
+  /// The technician request ID (from TechnicianJobRequest._id).
+  /// Null when navigating from an open job that has no request yet.
+  final String? requestId;
 
   const NewJob({
     required this.id,
@@ -324,5 +327,6 @@ class NewJob {
     required this.sector,
     required this.requestedFor,
     required this.estimatedPay,
+    this.requestId,
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/constant/common_widgets/app_shimmer.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'job_controller.dart';
 
@@ -67,6 +68,22 @@ class JobScreen extends GetView<JobController> {
           // ── Job List ──────────────────────────────────────────────────────
           Expanded(
             child: Obx(() {
+              // Show shimmer skeleton while the initial load is in progress
+              if (controller.isLoading.value) {
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: const [
+                    RecommendedJobCardShimmer(),
+                    SizedBox(height: 20),
+                    JobListCardShimmer(),
+                    SizedBox(height: 12),
+                    JobListCardShimmer(),
+                    SizedBox(height: 12),
+                    JobListCardShimmer(),
+                  ],
+                );
+              }
+
               final isNewTab = controller.selectedTab.value == JobTabType.newJobs;
               final jobs = controller.currentJobs;
 

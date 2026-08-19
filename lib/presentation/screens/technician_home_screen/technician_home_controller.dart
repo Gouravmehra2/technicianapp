@@ -3,6 +3,7 @@ import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/services/location_service.dart';
+import 'package:technicianapp/core/services/socket_service.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dashboard_controller.dart';
 import 'package:technicianapp/presentation/screens/earnings_screen/your_earnings_screen.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
@@ -34,6 +35,44 @@ class TechnicianHomeController extends GetxController {
     super.onInit();
     hitDashboardApi();
     hitJobsApi();
+    _listenToSocket();
+  }
+
+  /// Subscribe to real-time job/request socket events.
+  void _listenToSocket() {
+    final socket = SocketService.instance;
+    socket.reconnectIfNeeded();
+
+    // New job posted by admin → refresh jobs list
+    socket.on('job:new', (data) {
+      print('[Home] job:new → refreshing jobs');
+      hitJobsApi();
+    });
+
+    // Job updated (status change, assignment, etc.)
+    socket.on('job:updated', (data) {
+      print('[Home] job:updated → refreshing dashboard & jobs');
+      hitDashboardApi();
+      hitJobsApi();
+    });
+
+    // Job deleted → remove from list
+    socket.on('job:deleted', (data) {
+      print('[Home] job:deleted → refreshing jobs');
+      hitJobsApi();
+    });
+
+    // Request status changed (e.g. accepted, completed)
+    socket.on('request:updated', (data) {
+      print('[Home] request:updated → refreshing dashboard');
+      hitDashboardApi();
+    });
+
+    // Request status pushed directly
+    socket.on('request:status', (data) {
+      print('[Home] request:status → refreshing dashboard');
+      hitDashboardApi();
+    });
   }
 
   String get greeting {
@@ -92,6 +131,27 @@ class TechnicianHomeController extends GetxController {
 
   void onAcceptJob(NewJob job) => _switchDashboardTab(2);
 
+  void onCounterOffer(NewJob job) {
+    final matchingRequest = dashboardData?.data?.requests?.firstWhereOrNull(
+      (r) => (r.job?.sId ?? '') == job.id,
+    );
+    final jobWithRequest = NewJob(
+      id: job.id,
+      title: job.title,
+      distance: job.distance,
+      sector: job.sector,
+      requestedFor: job.requestedFor,
+      estimatedPay: job.estimatedPay,
+      requestId: matchingRequest?.sId,
+    );
+    // Pass both the NewJob and the matching Requests object so the counter
+    // offer screen can render the full conversation without an extra API call.
+    Get.toNamed(
+      AppRoutes.counterOfferScreen,
+      arguments: {'job': jobWithRequest, 'request': matchingRequest},
+    );
+  }
+
   void onDeclineJob(NewJob job) {}
 
   void onViewNewJobDetails(NewJob job) {
@@ -112,6 +172,11 @@ class TechnicianHomeController extends GetxController {
   }
 
   //api calling
+  Future<void> refreshData() async {
+    hitDashboardApi();
+    hitJobsApi();
+  }
+
   void hitDashboardApi() async {
     try {
       isLoading.value = true;
@@ -138,7 +203,6 @@ class TechnicianHomeController extends GetxController {
             status: job.status == 'in-progress' ? 'IN PROGRESS' : 'UPCOMING',
           );
         }).toList();
-
         activeJobsCount.value = accepted.length;
         todayScheduleCount.value = accepted.length;
         newRequestsCount.value = requests
@@ -168,10 +232,19 @@ class TechnicianHomeController extends GetxController {
             ),
             estimatedPay: '\$${job.budget ?? 0}',
           );
-        }).toList();
-      });
+        }).toList();      });
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
     }
+  }
+
+  @override
+  void onClose() {
+    SocketService.instance.off('job:new');
+    SocketService.instance.off('job:updated');
+    SocketService.instance.off('job:deleted');
+    SocketService.instance.off('request:updated');
+    SocketService.instance.off('request:status');
+    super.onClose();
   }
 }

@@ -1,8 +1,8 @@
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String baseUrl = 'http://192.168.1.41:5001';
-  static const String socketUrl = 'http://192.168.1.41:5001';
+  static const String baseUrl = 'http://192.168.1.6:5001';
+  static const String socketUrl = 'http://192.168.1.6:5001';
 
   // =========================
   // Auth
@@ -23,6 +23,14 @@ class ApiEndpoints {
   static const String completeProfile = '/api/technician-auth/complete-profile';
   static const String bankDetails = '/api/technician-auth/bank-details';
   static const String me = '/api/technician-auth/me';
+
+  // =========================
+  // FCM / Device Token
+  // =========================
+
+  /// PATCH /api/technician-auth/fcm-token
+  /// Body: { "fcmToken": "<token>", "platform": "android" | "ios" }
+  static const String updateFcmToken = '/api/technician-auth/fcm-token';
 
   // =========================
   // User
@@ -63,5 +71,40 @@ class ApiEndpoints {
 
   static String cancelBooking(String id) {
     return '/bookings/$id/cancel';
+  }
+
+  // =========================
+  // Counter Offer / Charges
+  // =========================
+
+  /// POST /api/technician/jobs/:jobId/request
+  /// Body: { note?, fixedPrice?, charges?: [{label, description, amount}] }
+  static String requestJob(String jobId) {
+    return '/api/technician/jobs/$jobId/request';
+  }
+
+  /// GET  /api/technician/requests/:requestId/status
+  static String requestStatus(String requestId) {
+    return '/api/technician/requests/$requestId/status';
+  }
+
+  /// POST /api/technician/requests/:requestId/charges
+  static String submitCharges(String requestId) {
+    return '/api/technician/requests/$requestId/charges';
+  }
+
+  /// GET  /api/technician/requests/:requestId/charges
+  static String getMyCharges(String requestId) {
+    return '/api/technician/requests/$requestId/charges';
+  }
+
+  /// PATCH /api/technician/charges/:chargeId/respond
+  static String respondToCharge(String chargeId) {
+    return '/api/technician/charges/$chargeId/respond';
+  }
+
+  /// GET  /api/technician/requests/:requestId/invoice
+  static String getTechnicianInvoice(String requestId) {
+    return '/api/technician/requests/$requestId/invoice';
   }
 }

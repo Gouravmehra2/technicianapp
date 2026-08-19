@@ -184,8 +184,6 @@ class TechnicianOnboardingController extends GetxController {
   }
 
   void _registerVerificationListener() {
-    // socket_service.on() automatically removes any previous listener for
-    // this event before adding — no stacking, no duplicate calls.
     socketService.on('technician:verificationUpdated', (data) {
       print('[Socket] technician:verificationUpdated received');
       print('[Socket] Data: $data');
@@ -196,6 +194,10 @@ class TechnicianOnboardingController extends GetxController {
         verificationUpdateData.value = {'raw': data};
       }
     });
+    print('[Socket] Registered listener for technician:verificationUpdated'
+        ' | connected=${socketService.isConnected}'
+        ' | socketId=${socketService.socketId}'
+        ' | technicianId=${socketService.technicianId}');
   }
 
   /// Fetches GET /api/technician-auth/me and populates [verificationStatus],

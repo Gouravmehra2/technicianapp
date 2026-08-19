@@ -81,4 +81,5 @@ class AppRoutes {
   static String jobDetailScreen = '/jobDetailScreen';
   static String jobSendQuoteScreen = '/jobSendQuoteScreen';
   static String jobQuoteSentScreen = '/jobQuoteSentScreen';
+  static String counterOfferScreen = '/counterOfferScreen';
 }

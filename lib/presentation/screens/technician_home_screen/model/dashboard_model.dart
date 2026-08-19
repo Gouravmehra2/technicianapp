@@ -366,14 +366,27 @@ class AssignedTechnician {
 class Conversation {
   String? sender;
   String? message;
+  /// The counter offer amount attached to this conversation entry (may be 0).
+  int? counterOffer;
+  /// Who sent the counter offer in this entry ('technician' | 'admin' | '').
+  String? counterOfferFrom;
   String? createdAt;
   String? sId;
 
-  Conversation({this.sender, this.message, this.createdAt, this.sId});
+  Conversation({
+    this.sender,
+    this.message,
+    this.counterOffer,
+    this.counterOfferFrom,
+    this.createdAt,
+    this.sId,
+  });
 
   Conversation.fromJson(Map<String, dynamic> json) {
     sender = json['sender'];
     message = json['message'];
+    counterOffer = json['counterOffer'] as int?;
+    counterOfferFrom = json['counterOfferFrom'] as String?;
     createdAt = json['createdAt'];
     sId = json['_id'];
   }
@@ -382,6 +395,8 @@ class Conversation {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['sender'] = this.sender;
     data['message'] = this.message;
+    data['counterOffer'] = this.counterOffer;
+    data['counterOfferFrom'] = this.counterOfferFrom;
     data['createdAt'] = this.createdAt;
     data['_id'] = this.sId;
     return data;

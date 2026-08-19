@@ -10,6 +10,7 @@ import 'package:technicianapp/auth/otp_screen/otp_screen.dart';
 import 'package:technicianapp/auth/sign_up_screen/sign_up_binding.dart';
 import 'package:technicianapp/auth/sign_up_screen/sign_up_screen.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/presentation/screens/counter_offer_screen/counter_offer_screen.dart';
 import 'package:technicianapp/presentation/screens/map_screen/map_binding.dart';
 import 'package:technicianapp/presentation/screens/map_screen/map_screen.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dasboard_screen.dart';
@@ -477,6 +478,10 @@ class AppPages {
     GetPage(
       name: AppRoutes.jobQuoteSentScreen,
       page: () => const JobQuoteSentScreen(),
+      transition: Transition.rightToLeftWithFade,
+    ),GetPage(
+      name: AppRoutes.counterOfferScreen,
+      page: () => const CounterOfferScreen(),
       transition: Transition.rightToLeftWithFade,
     ),
   ];

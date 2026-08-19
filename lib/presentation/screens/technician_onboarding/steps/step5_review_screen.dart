@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/constant/common_widgets/app_shimmer.dart';
 import 'package:technicianapp/constant/common_widgets/common_button.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
@@ -75,7 +76,23 @@ class _PendingBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isFetchingMe.value) {
-        return const Center(child: CircularProgressIndicator());
+        return AppShimmer(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              children: const [
+                SizedBox(height: 24),
+                ShimmerBox(width: 120, height: 120, radius: 60),
+                SizedBox(height: 28),
+                ShimmerBox(width: 220, height: 28),
+                SizedBox(height: 10),
+                ShimmerBox(width: 200, height: 16),
+                SizedBox(height: 28),
+                ShimmerBox(width: double.infinity, height: 160, radius: 12),
+              ],
+            ),
+          ),
+        );
       }
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),

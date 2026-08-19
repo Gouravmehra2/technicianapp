@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/constant/common_widgets/app_shimmer.dart';
 import 'package:technicianapp/constant/common_widgets/common_button.dart';
 import 'package:technicianapp/constant/common_widgets/common_text_form_field.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
@@ -1512,6 +1513,12 @@ class _UnderReviewPage extends GetView<TechnicianOnboardingController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      // Show shimmer skeleton while the initial /me fetch is in progress
+      if (controller.isFetchingMe.value &&
+          controller.verificationStatus.value.isEmpty) {
+        return const _ReviewPageShimmer();
+      }
+
       final status = controller.verificationStatus.value;
       final isRejected = status == 'rejected';
 
@@ -1525,6 +1532,58 @@ class _UnderReviewPage extends GetView<TechnicianOnboardingController> {
       // Default: pending / in-review state
       return _PendingReviewView(controller: controller);
     });
+  }
+}
+
+// ── Shimmer skeleton for the Under Review page ────────────────────────────────
+
+class _ReviewPageShimmer extends StatelessWidget {
+  const _ReviewPageShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          children: [
+            // Step indicator placeholder
+            const ShimmerBox(width: double.infinity, height: 48, radius: 12),
+            const SizedBox(height: 40),
+            // Icon circle placeholder
+            const ShimmerBox(width: 120, height: 120, radius: 60),
+            const SizedBox(height: 28),
+            // Headline
+            const ShimmerBox(width: 220, height: 28),
+            const SizedBox(height: 10),
+            // Sub-headline
+            const ShimmerBox(width: 180, height: 16),
+            const SizedBox(height: 28),
+            // Status card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ShimmerBox(width: 140, height: 18),
+                  SizedBox(height: 16),
+                  ShimmerBox(width: double.infinity, height: 14),
+                  SizedBox(height: 10),
+                  ShimmerBox(width: double.infinity, height: 14),
+                  SizedBox(height: 10),
+                  ShimmerBox(width: double.infinity, height: 14),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

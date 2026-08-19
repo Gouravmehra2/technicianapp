@@ -12,50 +12,52 @@ class ScheduleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Section header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Today's Schedule",
-                style: AppTextStyle.titleLargeBold.copyWith(
-                  color: AppColor.blackShade1,
+    return Obx(() {
+      if (controller.todaySchedule.isEmpty) return const SizedBox.shrink();
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Today's Schedule",
+                  style: AppTextStyle.titleLargeBold.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
                 ),
-              ),
-              GestureDetector(
-                onTap: controller.onViewAllSchedule,
-                child: Row(
-                  children: [
-                    Text(
-                      'View All',
-                      style: AppTextStyle.bodySmallMedium.copyWith(
+                GestureDetector(
+                  onTap: controller.onViewAllSchedule,
+                  child: Row(
+                    children: [
+                      Text(
+                        'View All',
+                        style: AppTextStyle.bodySmallMedium.copyWith(
+                          color: AppColor.brownAccentPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward,
+                        size: 14,
                         color: AppColor.brownAccentPrimary,
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.arrow_forward,
-                      size: 14,
-                      color: AppColor.brownAccentPrimary,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Obx(() => Column(
-          children: controller.todaySchedule
-              .map((job) => _ScheduleJobCard(job: job, controller: controller))
-              .toList(),
-        )),
-      ],
-    );
+          const SizedBox(height: 12),
+          Column(
+            children: controller.todaySchedule
+                .map((job) => _ScheduleJobCard(job: job, controller: controller))
+                .toList(),
+          ),
+        ],
+      );
+    });
   }
 }
 

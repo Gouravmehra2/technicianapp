@@ -76,7 +76,7 @@ class ProfessionalInfoController extends GetxController {
     Get.snackbar(
       'Saved',
       'Professional information updated successfully.',
-      snackPosition: SnackPosition.BOTTOM,
+      snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
   }

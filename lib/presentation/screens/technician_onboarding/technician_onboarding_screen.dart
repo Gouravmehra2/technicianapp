@@ -1178,20 +1178,8 @@ class _ExperiencePage extends StatelessWidget {
                   controller: controller.yearsController,
                   hintText: 'e.g. 3',
                   borderRadius: 30,
+                  maxLength: 2,
                   keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Previous Company (optional)',
-                  style: AppTextStyle.bodyMediumMedium.copyWith(
-                    color: AppColor.blackShade1,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CommonTextFormField(
-                  controller: controller.company1Controller,
-                  hintText: 'Company name',
-                  borderRadius: 30,
                 ),
                 const SizedBox(height: 16),
                 Text(

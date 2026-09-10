@@ -1,6 +1,10 @@
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/end_point/end_point.dart';
+import 'package:technicianapp/core/models/chat_detail_model.dart';
+import 'package:technicianapp/core/models/technician_models.dart';
 import 'package:technicianapp/presentation/screens/counter_offer_screen/model/charges_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
@@ -301,7 +305,8 @@ class ApiRepo {
     }
   }
 
-  /// Fetch open jobs for technician — GET /api/technician/jobs
+  /// Fetch open jobs for technician — kept for legacy use elsewhere.
+  /// Prefer getNewJobsApi() in JobController.
   Future<NewJobsModel> getTechnicianJobsApi() async {
     try {
       final response = await dioClient.get(ApiEndpoints.technicianJobs);
@@ -385,7 +390,7 @@ class ApiRepo {
   Future<Response> requestJobApi({
     required String jobId,
     String? note,
-    double? fixedPrice,
+    int? fixedPrice,
     List<Map<String, dynamic>>? charges,
   }) async {
     try {
@@ -432,15 +437,336 @@ class ApiRepo {
 
   /// PATCH /api/technician/charges/:chargeId/respond
   ///
-  /// Body: { "action": "accept" | "reject" }
+  /// Body: { "action": "accept" | "counter" | "reject", "note"?: "", "amount"?: 220 }
+  /// Per the PDF: for action='counter', additionally send amount.
   Future<Response> respondToChargeApi({
     required String chargeId,
-    required String action, // 'accept' or 'reject'
+    required String action, // 'accept' | 'counter' | 'reject'
+    double? amount, // required when action == 'counter'
+    String? note,
   }) async {
     try {
+      final Map<String, dynamic> body = {
+        'action': action,
+        'note': note ?? '',
+        if (amount != null) 'amount': amount,
+      };
       return await dioClient.patch(
         ApiEndpoints.respondToCharge(chargeId),
-        data: {'action': action},
+        data: body,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/technician/job-requests/:requestId/cancel
+  ///
+  /// Cancels a pending job request made by the technician.
+  /// Returns: { success, message, data: { requestId, jobId, technicianId } }
+  Future<Response> cancelJobRequestApi({required String requestId}) async {
+    try {
+      return await dioClient.patch(ApiEndpoints.cancelJobRequest(requestId));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/technician/requests/:requestId/counter-offer
+  ///
+  /// Body: { "amount": 220, "message": "optional message" }
+  /// Used when admin has sent a counter and the technician responds with a new amount.
+  Future<Response> sendCounterOfferApi({
+    required String requestId,
+    required double amount,
+    String message = '',
+  }) async {
+    try {
+      return await dioClient.post(
+        ApiEndpoints.sendCounterOffer(requestId),
+        data: {'amount': amount, 'message': message},
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/technician/requests/:requestId/message
+  ///
+  /// Body: { "message": "<text>" }
+  /// Returns the created conversation entry.
+  Future<Response> sendMessageApi({
+    required String requestId,
+    required String message,
+  }) async {
+    try {
+      return await dioClient.post(
+        ApiEndpoints.sendMessage(requestId),
+        data: {'message': message},
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/requests/:requestId/messages
+  ///
+  /// Returns the full conversation for the request.
+  Future<Response> getMessagesApi(String requestId) async {
+    try {
+      return await dioClient.get(ApiEndpoints.getMessages(requestId));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── New endpoints ─────────────────────────────────────────────────────────────
+
+  /// GET /api/technician/jobs?filter=new
+  ///
+  /// Returns new/open jobs available for this technician.
+  Future<NewJobsModel> getNewJobsApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'new'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=requested
+  ///
+  /// Returns jobs that the technician has already sent a request for.
+  Future<NewJobsModel> getRequestedJobsApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'requested'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=active
+  ///
+  /// Returns active (accepted / in-progress) jobs for this technician.
+  Future<NewJobsModel> getActiveJobsApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'active'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=completed
+  ///
+  /// Returns completed jobs for this technician.
+  Future<NewJobsModel> getCompletedJobsApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'completed'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=today
+  ///
+  /// Returns scheduled jobs for today.
+  Future<NewJobsModel> getScheduledJobsTodayApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'today'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=tomorrow
+  ///
+  /// Returns scheduled jobs for tomorrow.
+  Future<NewJobsModel> getScheduledJobsTomorrowApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'tomorrow'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=custom&fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
+  ///
+  /// Returns scheduled jobs for the full week (today through today+6).
+  Future<NewJobsModel> getScheduledJobsWeekApi({
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {
+          'filter': 'custom',
+          'fromDate': _toDateString(fromDate),
+          'toDate': _toDateString(toDate),
+        },
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Formats a [DateTime] as `YYYY-MM-DD` in local time.
+  String _toDateString(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  /// GET /api/technician/metrics
+  ///
+  /// Returns performance metrics: totalJobsDone, totalEarnings, balance, etc.
+  Future<MetricsModel> getMetricsApi() async {
+    try {
+      final response = await dioClient.get(ApiEndpoints.metrics);
+      return MetricsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/start-navigation
+  ///
+  /// Signals to the backend that the technician has started navigation
+  /// to the job location. No request body required.
+  Future<void> startNavigationApi(String jobId) async {
+    try {
+      await dioClient.patch(ApiEndpoints.startNavigation(jobId));
+    } catch (e) {
+      // Non-blocking — log and continue so navigation still starts even if
+      // the API call fails (e.g. offline or temporary network hiccup).
+      print('[ApiRepo] startNavigationApi error: $e');
+    }
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/reached
+  ///
+  /// Records that the technician has reached the job location.
+  Future<MarkReachedModel> markReachedApi(
+    String jobId, {
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      final response = await dioClient.patch(
+        ApiEndpoints.markReached(jobId),
+        data: {'lat': lat, 'lng': lng},
+      );
+      return MarkReachedModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/complete
+  ///
+  /// Marks the job as completed by the technician.
+  /// No request body required. Admin still needs to close and process payment.
+  Future<MarkCompletedModel> markCompletedApi(String jobId) async {
+    try {
+      final response = await dioClient.patch(ApiEndpoints.markCompleted(jobId));
+      return MarkCompletedModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/technician/withdraw
+  ///
+  /// Creates a withdrawal request.
+  ///
+  /// Payload example:
+  /// {
+  ///   "amount": 5000,
+  ///   "method": "bank",          // "bank" | "upi"
+  ///   "details": "HDFC xxxxxx"   // optional note
+  /// }
+  Future<WithdrawalResponseModel> createWithdrawalApi({
+    required int amount,
+    required String method,
+    String? details,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {
+        'amount': amount,
+        'method': method,
+        if (details != null && details.isNotEmpty) 'details': details,
+      };
+      final response = await dioClient.post(
+        ApiEndpoints.createWithdrawal,
+        data: body,
+      );
+      return WithdrawalResponseModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/withdrawals
+  ///
+  /// Returns the full withdrawal history for this technician.
+  Future<WithdrawalsModel> getWithdrawalsApi() async {
+    try {
+      final response = await dioClient.get(ApiEndpoints.withdrawals);
+      return WithdrawalsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/conversation/:requestId
+  ///
+  /// Returns the complete conversation history for a specific request.
+  Future<ChatDetailModel> getConversationApi(String requestId) async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.getConversation(requestId),
+      );
+      return ChatDetailModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/details/:jobId
+  ///
+  /// Returns full job details including the technician's request for that job.
+  Future<Jobs> getJobDetailApi(String jobId) async {
+    try {
+      final response = await dioClient.get(ApiEndpoints.jobDetails(jobId));
+      return Jobs.fromJson(
+        response.data['data']['job'] as Map<String, dynamic>,
       );
     } catch (e) {
       rethrow;

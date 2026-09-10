@@ -31,15 +31,32 @@ class AppSnackbar {
     );
   }
 
+  // ── Info ──────────────────────────────────────────────────────────────────
+
+  static void info(String message, {String title = 'Notification'}) {
+    _show(
+      title: title,
+      message: message,
+      backgroundColor: const Color(0xFF1565C0), // dark blue
+      icon: Icons.notifications_outlined,
+    );
+  }
+
   // ── Internal ──────────────────────────────────────────────────────────────
 
   static void _show({
     required String title,
     required String message,
     required Color backgroundColor,
+    IconData? icon,
   }) {
     // Dismiss any snackbar already on screen to prevent stacking.
     if (Get.isSnackbarOpen) Get.closeCurrentSnackbar();
+
+    final resolvedIcon = icon ??
+        (backgroundColor == const Color(0xFF2E7D32)
+            ? Icons.check_circle_outline
+            : Icons.error_outline);
 
     Get.snackbar(
       title,
@@ -68,9 +85,7 @@ class AppSnackbar {
         ),
       ),
       icon: Icon(
-        backgroundColor == const Color(0xFF2E7D32)
-            ? Icons.check_circle_outline
-            : Icons.error_outline,
+        resolvedIcon,
         color: Colors.white,
         size: 22,
       ),

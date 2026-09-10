@@ -38,7 +38,7 @@ class PrivacySecurityController extends GetxController {
     Get.snackbar(
       'Logged Out',
       'All devices have been logged out.',
-      snackPosition: SnackPosition.BOTTOM,
+      snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
   }

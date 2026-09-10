@@ -20,8 +20,8 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.technicianapp"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // FCM requires minSdk 21+. flutter.minSdkVersion is already 21 in
+        // Flutter 3.x, but we pin it explicitly to prevent accidental rollback.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

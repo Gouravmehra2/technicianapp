@@ -29,7 +29,7 @@ class ApiEndpoints {
   // =========================
 
   /// PATCH /api/technician-auth/fcm-token
-  /// Body: { "fcmToken": "<token>", "platform": "android" | "ios" }
+  /// Body: `{ "fcmToken": "<token>", "platform": "android" | "ios" }`
   static const String updateFcmToken = '/api/technician-auth/fcm-token';
 
   // =========================
@@ -52,6 +52,45 @@ class ApiEndpoints {
 
   static const String technicianDashboard = '/api/technician/dashboard';
   static const String technicianJobs = '/api/technician/jobs';
+
+  /// GET /api/technician/requests
+  static const String myRequests = '/api/technician/requests';
+
+  /// GET /api/technician/myjobs
+
+  /// GET /api/technician/metrics
+  static const String metrics = '/api/technician/metrics';
+
+  /// POST /api/technician/withdraw
+  static const String createWithdrawal = '/api/technician/withdraw';
+
+  /// GET /api/technician/withdrawals
+  static const String withdrawals = '/api/technician/withdrawals';
+
+  /// PATCH /api/technician/jobs/:jobId/start-navigation
+  static String startNavigation(String jobId) {
+    return '/api/technician/jobs/$jobId/start-navigation';
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/reached
+  static String markReached(String jobId) {
+    return '/api/technician/jobs/$jobId/reached';
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/complete
+  static String markCompleted(String jobId) {
+    return '/api/technician/jobs/$jobId/complete';
+  }
+
+  /// GET /api/technician/conversation/:requestId
+  static String getConversation(String requestId) {
+    return '/api/technician/details/$requestId';
+  }
+
+  /// GET /api/technician/details/:jobId
+  static String jobDetails(String jobId) {
+    return '/api/technician/details/$jobId';
+  }
 
   // =========================
   // Services
@@ -83,6 +122,11 @@ class ApiEndpoints {
     return '/api/technician/jobs/$jobId/request';
   }
 
+  /// POST /api/technician/job-requests/:requestId/cancel
+  static String cancelJobRequest(String requestId) {
+    return '/api/technician/job-requests/$requestId/cancel';
+  }
+
   /// GET  /api/technician/requests/:requestId/status
   static String requestStatus(String requestId) {
     return '/api/technician/requests/$requestId/status';
@@ -106,5 +150,22 @@ class ApiEndpoints {
   /// GET  /api/technician/requests/:requestId/invoice
   static String getTechnicianInvoice(String requestId) {
     return '/api/technician/requests/$requestId/invoice';
+  }
+
+  /// POST /api/technician/requests/:requestId/message
+  /// Body: { "message": "<text>" }
+  static String sendMessage(String requestId) {
+    return '/api/technician/requests/$requestId/message';
+  }
+
+  /// GET  /api/technician/requests/:requestId/messages
+  static String getMessages(String requestId) {
+    return '/api/technician/requests/$requestId/messages';
+  }
+
+  /// POST /api/technician/requests/:requestId/counter-offer
+  /// Body: { "amount": 220, "message": "optional message" }
+  static String sendCounterOffer(String requestId) {
+    return '/api/technician/requests/$requestId/counter-offer';
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 
 enum ChatMessageType { text, offer }
 
@@ -142,7 +143,21 @@ class ChatSupportController extends GetxController {
   }
 
   @override
+  void onInit() {
+    super.onInit();
+    // Tell FirebaseService the chat screen is open so incoming chat
+    // notifications are suppressed while the user can see the messages.
+    try {
+      FirebaseService.to.onChatScreenOpened(AppRoutes.chatSupportScreen);
+    } catch (_) {}
+  }
+
+  @override
   void onClose() {
+    // Re-enable chat notifications when the user leaves this screen.
+    try {
+      FirebaseService.to.onChatScreenClosed();
+    } catch (_) {}
     messageController.dispose();
     labelController.dispose();
     valueController.dispose();

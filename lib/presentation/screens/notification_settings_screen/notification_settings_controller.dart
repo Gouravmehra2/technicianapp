@@ -86,7 +86,7 @@ class NotificationSettingsController extends GetxController {
     Get.snackbar(
       'Saved',
       'Notification preferences updated.',
-      snackPosition: SnackPosition.BOTTOM,
+      snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
   }

@@ -1,12 +1,17 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
+import 'package:technicianapp/presentation/screens/schedule_job_screen/navigation_controller.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
 
-class ScheduleJobNavigationScreen extends GetView<ScheduleJobController> {
-  const ScheduleJobNavigationScreen({super.key});
+class ScheduleJobNavigationScreen extends GetView<NavigationController> {
+  ScheduleJobNavigationScreen({super.key});
+
+  @override
+  // ignore: overridden_fields
+  final NavigationController controller = Get.put(NavigationController());
 
   @override
   Widget build(BuildContext context) {
@@ -19,580 +24,534 @@ class ScheduleJobNavigationScreen extends GetView<ScheduleJobController> {
           onTap: Get.back,
           child: Container(
             margin: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: Color(0xFFF0F0F0), shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF0F0F0),
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.chevron_left, color: Colors.black87),
           ),
         ),
-        title: const Text('Navigation',
-            style: TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 22, fontFamily: 'Inter', color: Colors.black)),
+        title: Obx(
+          () => Text(
+            controller.isNavigating.value ? 'Live Navigation' : 'Route Preview',
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              fontFamily: 'Inter',
+              color: Colors.black,
+            ),
+          ),
+        ),
         actions: [
           GestureDetector(
-            onTap: controller.pauseJob,
+            onTap: Get.find<ScheduleJobController>().pauseJob,
             child: Container(
               margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                  color: AppColor.brownAccentPrimary, borderRadius: BorderRadius.circular(20)),
-              child: const Row(children: [
-                Icon(Icons.pause, color: Colors.white, size: 14),
-                SizedBox(width: 4),
-                Text('Job\nPause',
+                color: AppColor.brownAccentPrimary,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.pause, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Pause',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Inter')),
-              ]),
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Turn instruction banner
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08), blurRadius: 10)
-                    ]),
-                child: Row(children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                        color: const Color(0xFFFAF0E6),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.turn_right_outlined,
-                        color: Color(0xFFA5732F), size: 24),
+      body: Column(
+        children: [
+          // ── Live info strip ──────────────────────────────────────────────
+          Obx(
+            () => Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.07),
+                    blurRadius: 8,
                   ),
-                  const SizedBox(width: 12),
-                  const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('IN 200M',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFFA5732F),
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1)),
-                    Text('Turn right onto Sector 14',
-                        style:
-                            TextStyle(fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-                  ]),
-                ]),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _InfoChip(
+                    icon: Icons.route_outlined,
+                    value: controller.distanceText,
+                    label: 'Distance',
+                  ),
+                  Container(width: 1, height: 36, color: Colors.grey.shade200),
+                  _InfoChip(
+                    icon: Icons.access_time_outlined,
+                    value: controller.etaText,
+                    label: 'ETA',
+                    valueColor: const Color(0xFFA5732F),
+                  ),
+                  Container(width: 1, height: 36, color: Colors.grey.shade200),
+                  // Route loading indicator or status
+                  Obx(
+                    () => controller.isLoadingRoute.value
+                        ? const SizedBox(
+                            width: 60,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFA5732F),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Route',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                    fontFamily: 'Inter',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _InfoChip(
+                            icon: controller.isNavigating.value
+                                ? Icons.navigation
+                                : Icons.map_outlined,
+                            value: controller.isNavigating.value
+                                ? 'LIVE'
+                                : 'PREVIEW',
+                            label: 'Mode',
+                            valueColor: controller.isNavigating.value
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                  ),
+                ],
               ),
             ),
-            // Map placeholder
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                height: 280,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAF0E6),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFA5732F).withValues(alpha: 0.4)),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(children: [
-                    // Map grid + route
-                    CustomPaint(
-                      size: const Size(double.infinity, 280),
-                      painter: _MapPainter(),
+          ),
+
+          // ── Google Map ───────────────────────────────────────────────────
+          Expanded(
+            child: Stack(
+              children: [
+                Obx(
+                  () => GoogleMap(
+                    onMapCreated: controller.onMapCreated,
+                    initialCameraPosition: CameraPosition(
+                      target:
+                          controller.job.lat != null &&
+                              controller.job.lng != null
+                          ? LatLng(controller.job.lat!, controller.job.lng!)
+                          : const LatLng(28.6139, 77.2090),
+                      zoom: 14,
                     ),
-                    // Live traffic badge
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                            color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Live Traffic',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 12, fontFamily: 'Inter')),
-                          Text('Light', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                        ]),
-                      ),
-                    ),
-                    // Re-center button
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                            color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                        child: const Row(children: [
-                          Icon(Icons.send_outlined, size: 14, color: Color(0xFFA5732F)),
-                          SizedBox(width: 4),
-                          Text('Re-center',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                        ]),
-                      ),
-                    ),
-                    // Zoom controls
-                    Positioned(
-                      right: 12,
-                      bottom: 40,
-                      child: Column(children: [
-                        _MapBtn(icon: Icons.my_location),
-                        const SizedBox(height: 4),
-                        _MapBtn(icon: Icons.add),
-                        const SizedBox(height: 4),
-                        _MapBtn(icon: Icons.remove),
-                      ]),
-                    ),
-                  ]),
+                    markers: controller.markers.toSet(),
+                    polylines: controller.polylines.toSet(),
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
+                    mapToolbarEnabled: false,
+                    compassEnabled: true,
+                    trafficEnabled: false,
+                    buildingsEnabled: true,
+                    tiltGesturesEnabled: true,
+                    rotateGesturesEnabled: true,
+                  ),
                 ),
-              ),
-            ),
-            // Drag handle
-            const SizedBox(height: 8),
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 8),
-            // Job info sheet
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(children: [
-                // Job header
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200)),
-                  child: Row(children: [
-                    Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                            color: const Color(0xFFFAF0E6),
-                            borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.tv_outlined, color: Color(0xFFA5732F), size: 24)),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('TV Mounting',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w800, fontFamily: 'Inter')),
-                      SizedBox(height: 4),
-                      _NavBadge(text: 'Job ID: #1024'),
-                      SizedBox(height: 4),
-                      _NavBadge(text: 'IN PROGRESS'),
-                    ])),
-                    Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.grey.shade300)),
-                        child: const Icon(Icons.phone_outlined,
-                            color: Color(0xFFA5732F), size: 18)),
-                  ]),
+
+                // ── Turn-by-turn instruction banner (live navigation only) ──
+                Obx(
+                  () => controller.isNavigating.value &&
+                          controller.currentInstruction.value.isNotEmpty
+                      ? Positioned(
+                          top: 10,
+                          left: 12,
+                          right: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A73E8),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.turn_right,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        controller.currentInstruction.value,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                          fontFamily: 'Inter',
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (controller.nextInstruction.value.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    controller.nextInstruction.value,
+                                    style: const TextStyle(
+                                      color: Color(0xCCFFFFFF),
+                                      fontSize: 11,
+                                      fontFamily: 'Inter',
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-                const SizedBox(height: 10),
-                // Stats grid
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200)),
-                  child: Column(children: [
-                    Row(children: [
-                      Expanded(
-                          child: _NavStatItem(
-                              icon: Icons.access_time_outlined,
-                              value: '10:30 AM',
-                              label: 'ETA')),
-                      Container(width: 1, height: 50, color: Colors.grey.shade200),
-                      Expanded(
-                          child: _NavStatItem(
-                              icon: Icons.timer_outlined,
-                              value: '1.5 hrs',
-                              label: 'Duration',
-                              iconColor: const Color(0xFFA5732F))),
-                    ]),
-                    Divider(color: Colors.grey.shade200),
-                    Row(children: [
-                      Expanded(
-                          child: _NavStatItem(
-                              icon: Icons.location_on_outlined,
-                              value: '1.8 km',
-                              label: 'Distance')),
-                      Container(width: 1, height: 50, color: Colors.grey.shade200),
-                      Expanded(
-                          child: _NavStatItem(
-                              icon: Icons.currency_rupee,
-                              value: '\$650',
-                              label: 'Est. Amount',
-                              iconColor: const Color(0xFFA5732F))),
-                    ]),
-                  ]),
-                ),
-                const SizedBox(height: 10),
-                // Destination
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200)),
-                  child: Row(children: [
-                    const Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('DESTINATION',
-                          style: TextStyle(fontSize: 11, color: Colors.grey, letterSpacing: 1)),
-                      Text('House No. 123, Sector 14',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-                      Text('Near City Mall, Sector 14',
-                          style: TextStyle(color: Colors.grey, fontSize: 13)),
-                    ])),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+
+                // Re-center FAB
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: GestureDetector(
+                    onTap: controller.recenter,
+                    child: Container(
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFA5732F))),
-                      child: const Text('View Details',
-                          style: TextStyle(color: Color(0xFFA5732F), fontWeight: FontWeight.w600)),
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.my_location,
+                        color: Color(0xFFA5732F),
+                        size: 22,
+                      ),
                     ),
-                  ]),
+                  ),
                 ),
-                const SizedBox(height: 10),
-                // Arrival + distance row
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFFAF0E6), borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Row(children: [
-                        Icon(Icons.access_time_outlined, size: 14, color: Colors.black54),
-                        SizedBox(width: 4),
-                        Text('Arrival', style: TextStyle(color: Colors.black54))
-                      ]),
-                      RichText(
-                          text: const TextSpan(style: TextStyle(fontFamily: 'Inter'), children: [
-                        TextSpan(
-                            text: '10:45 AM ',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black)),
-                        TextSpan(
-                            text: '(8 min)',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFFA5732F),
-                                fontWeight: FontWeight.w600)),
-                      ])),
-                    ])),
-                    Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Row(children: [
-                        Icon(Icons.route_outlined, size: 14, color: Colors.black54),
-                        SizedBox(width: 4),
-                        Text('Distance', style: TextStyle(color: Colors.black54))
-                      ]),
-                      const Text('4.2 km left',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-                    ])),
-                  ]),
+
+                // Map loading overlay
+                Obx(
+                  () => !controller.isMapReady.value
+                      ? Container(
+                          color: Colors.white,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFA5732F),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-                const SizedBox(height: 14),
-                _BrownButton(label: '👤  Reached', onTap: () {}),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: _GreyButton(label: '📞  Call Support', onTap: () {})),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: _RedButton(label: '✕  Cancel Route', onTap: controller.cancelJob)),
-                ]),
-                const SizedBox(height: 24),
-              ]),
+              ],
             ),
-          ],
-        ),
+          ),
+
+          // ── Bottom panel ─────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Obx(() {
+              // ── REACHED state ──────────────────────────────────────────
+              if (controller.hasReached.value) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: const Text(
+                    '✅  Reached — Navigation Stopped',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                );
+              }
+
+              // ── PREVIEW state — show Start Navigation ──────────────────
+              if (!controller.isNavigating.value) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Destination label
+                    _DestinationRow(job: controller.job),
+                    const SizedBox(height: 14),
+                    // Start Navigation button
+                    GestureDetector(
+                      onTap: controller.startNavigation,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A73E8),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Start Navigation',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                fontFamily: 'Inter',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: Get.find<ScheduleJobController>().cancelJob,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEEEE),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Text(
+                          '✕  Cancel',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // ── NAVIGATING state ───────────────────────────────────────
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _DestinationRow(job: controller.job),
+                  const SizedBox(height: 14),
+                  // Reached button
+                  GestureDetector(
+                    onTap: controller.markReached,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA5732F),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Text(
+                        '📍  Reached',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: Get.find<ScheduleJobController>().cancelJob,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEEEE),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Text(
+                        '✕  Cancel Route',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── Helper Widgets ───────────────────────────────────────────────────────────
+// ─── Destination row ──────────────────────────────────────────────────────────
 
-class _MapBtn extends StatelessWidget {
-  final IconData icon;
-  const _MapBtn({required this.icon});
+class _DestinationRow extends StatelessWidget {
+  final ScheduledJobModel job;
+
+  const _DestinationRow({required this.job});
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, size: 18));
-  }
-}
-
-class _NavBadge extends StatelessWidget {
-  final String text;
-  const _NavBadge({required this.text});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration:
-          BoxDecoration(color: const Color(0xFFFAF0E6), borderRadius: BorderRadius.circular(20)),
-      child: Text(text,
-          style: const TextStyle(
-              color: Color(0xFFA5732F),
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
-              fontFamily: 'Inter')),
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF0E6),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.location_on_outlined,
+            color: Color(0xFFA5732F),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'DESTINATION',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  letterSpacing: 1,
+                  fontFamily: 'Inter',
+                ),
+              ),
+              Text(
+                job.distance.isNotEmpty ? job.distance : 'Client Location',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Inter',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _NavStatItem extends StatelessWidget {
+// ─── Info chip ────────────────────────────────────────────────────────────────
+
+class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
-  final Color? iconColor;
-  const _NavStatItem(
-      {required this.icon, required this.value, required this.label, this.iconColor});
+  final Color? valueColor;
+
+  const _InfoChip({
+    required this.icon,
+    required this.value,
+    required this.label,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Icon(icon, size: 16, color: iconColor ?? Colors.grey),
-      const SizedBox(height: 2),
-      Text(value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, fontFamily: 'Inter')),
-      Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-    ]);
-  }
-}
-
-// ─── Map Painter ──────────────────────────────────────────────────────────────
-
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Grid
-    final gridPaint = Paint()
-      ..color = const Color(0xFFE8D5B7).withValues(alpha: 0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Route
-    final routePaint = Paint()
-      ..color = const Color(0xFFA5732F)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path()
-      ..moveTo(size.width * 0.55, 20)
-      ..lineTo(size.width * 0.55, size.height * 0.35)
-      ..lineTo(size.width * 0.3, size.height * 0.55)
-      ..lineTo(size.width * 0.3, size.height * 0.75)
-      ..lineTo(size.width * 0.5, size.height * 0.9);
-    canvas.drawPath(path, routePaint);
-
-    // Start dot
-    canvas.drawCircle(Offset(size.width * 0.55, 20), 8,
-        Paint()..color = const Color(0xFFA5732F));
-
-    // End location circle (compass-style)
-    const cx = 0.5;
-    const cy = 0.9;
-    final endX = size.width * cx;
-    final endY = size.height * cy;
-    canvas.drawCircle(
-        Offset(endX, endY), 20, Paint()..color = Colors.white..style = PaintingStyle.fill);
-    canvas.drawCircle(
-        Offset(endX, endY),
-        20,
-        Paint()
-          ..color = Colors.grey.shade400
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2);
-
-    // Arrow on end circle
-    final arrowPaint = Paint()
-      ..color = Colors.grey.shade600
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    // Draw a simple arrow pointing up-right
-    final arrowPath = Path()
-      ..moveTo(endX - 6, endY + 4)
-      ..lineTo(endX + 6, endY - 4)
-      ..moveTo(endX + 6, endY - 4)
-      ..lineTo(endX + 2, endY - 4)
-      ..moveTo(endX + 6, endY - 4)
-      ..lineTo(endX + 6, endY);
-    canvas.drawPath(arrowPath, arrowPaint);
-
-    // Map labels
-    _drawMapLabel(canvas, size, 'Green Park', 0.15, 0.45, Colors.green);
-    _drawMapLabel(canvas, size, 'City Hospital', 0.68, 0.38, Colors.red);
-    _drawMapLabel(canvas, size, 'SECTOR 15', 0.55, 0.1, Colors.grey.shade600);
-    _drawMapLabel(canvas, size, 'SECTOR 14', 0.55, 0.45, Colors.grey.shade600);
-    _drawMapLabel(canvas, size, 'SECTOR 12', 0.22, 0.78, Colors.grey.shade600);
-
-    // Shopping centre
-    _drawMapMarker(canvas, size, 0.75, 0.72, Colors.blue, 'Shopping\nCentre');
-  }
-
-  void _drawMapLabel(Canvas canvas, Size size, String text, double rx, double ry, Color color) {
-    final tp = TextPainter(
-      text: TextSpan(
-          text: text,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: valueColor ?? Colors.grey),
+        const SizedBox(height: 2),
+        Text(
+          value,
           style: TextStyle(
-              color: color, fontSize: 9, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(size.width * rx, size.height * ry));
-  }
-
-  void _drawMapMarker(
-      Canvas canvas, Size size, double rx, double ry, Color color, String label) {
-    final cx = size.width * rx;
-    final cy = size.height * ry;
-    canvas.drawCircle(Offset(cx, cy), 14, Paint()..color = color.withValues(alpha: 0.15));
-    canvas.drawCircle(
-        Offset(cx, cy),
-        14,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2);
-    _drawMapLabel(canvas, size, label, rx - 0.04, ry + 0.06, color);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter _) => false;
-}
-
-// ─── Buttons ──────────────────────────────────────────────────────────────────
-
-class _BrownButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _BrownButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration:
-            BoxDecoration(color: const Color(0xFFA5732F), borderRadius: BorderRadius.circular(30)),
-        child: Text(label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16, fontFamily: 'Inter')),
-      ),
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Inter',
+            color: valueColor ?? Colors.black,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 11,
+            fontFamily: 'Inter',
+          ),
+        ),
+      ],
     );
   }
-}
-
-class _GreyButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _GreyButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-            color: Colors.grey.shade200, borderRadius: BorderRadius.circular(30)),
-        child: Text(label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-      ),
-    );
-  }
-}
-
-class _RedButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _RedButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-            color: const Color(0xFFFFEEEE), borderRadius: BorderRadius.circular(30)),
-        child: Text(label,
-            textAlign: TextAlign.center,
-            style:
-                const TextStyle(color: Colors.red, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-      ),
-    );
-  }
-}
-
-// ─── Star Badge (used by map screen too) ─────────────────────────────────────
-
-class StarBadgePainter extends CustomPainter {
-  final Color color;
-  final int sides;
-  const StarBadgePainter({required this.color, this.sides = 10});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color..style = PaintingStyle.fill;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final outerR = size.width / 2;
-    final innerR = outerR * 0.82;
-    final path = Path();
-    for (int i = 0; i < sides * 2; i++) {
-      final angle = (i * math.pi / sides) - (math.pi / 2);
-      final r = i.isEven ? outerR : innerR;
-      final x = cx + r * math.cos(angle);
-      final y = cy + r * math.sin(angle);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant StarBadgePainter old) => old.color != color;
 }

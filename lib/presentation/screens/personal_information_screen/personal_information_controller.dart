@@ -60,7 +60,7 @@ class PersonalInformationController extends GetxController {
   void saveProfile() {
     // TODO: implement save logic
     Get.snackbar('Success', 'Profile saved successfully',
-        snackPosition: SnackPosition.BOTTOM);
+        snackPosition: SnackPosition.TOP);
   }
 
   @override

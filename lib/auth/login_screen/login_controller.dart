@@ -203,7 +203,7 @@ class LoginController extends GetxController {
       );
 
       // Register the FCM/APNs token with the backend after a successful login.
-      await _registerDeviceToken();
+      // await _registerDeviceToken();
 
       _navigateAfterLogin(userData);
     } catch (e) {
@@ -213,7 +213,51 @@ class LoginController extends GetxController {
     }
   }
 
-  void _navigateAfterLogin(UserModel user) {    if (user.isTechnicianApproved) {
+  // ── FCM Token Registration ──────────────────────────────────────────────────
+
+  /// Sends the device FCM/APNs token to the backend so the server can send
+  /// push notifications to this device. Silently swallows errors so that a
+  /// token upload failure never blocks login flow.
+  Future<void> _registerDeviceToken() async {
+    try {
+      final firebase = FirebaseService.to;
+
+      // If token not yet available (rare on first launch), try a fresh fetch.
+      String? deviceToken = firebase.token;
+      if (deviceToken == null || deviceToken.isEmpty) {
+        deviceToken = await firebase.refreshToken();
+      }
+
+      if (deviceToken == null || deviceToken.isEmpty) {
+        debugPrint('[Login] No FCM token available — skipping upload.');
+        return;
+      }
+
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      await _apiRepo.updateFcmTokenApi(token: deviceToken, platform: platform);
+      debugPrint('[Login] FCM token sent to server ($platform).');
+
+      // Wire up future token refreshes so they are automatically re-sent
+      // to the backend without requiring another login.
+      firebase.onTokenUpdated = (newToken) async {
+        try {
+          await _apiRepo.updateFcmTokenApi(
+            token: newToken,
+            platform: Platform.isIOS ? 'ios' : 'android',
+          );
+          debugPrint('[FCM] Refreshed token sent to server.');
+        } catch (e) {
+          debugPrint('[FCM] Failed to send refreshed token: $e');
+        }
+      };
+    } catch (e) {
+      // Never block login because of a token registration failure.
+      debugPrint('[Login] FCM token registration failed (non-fatal): $e');
+    }
+  }
+
+  void _navigateAfterLogin(UserModel user) {
+    if (user.isTechnicianApproved) {
       _handleLocationAfterLogin();
     } else if (user.hasNotStartedOnboarding) {
       // Fresh account – docs never submitted → Step 1 overview

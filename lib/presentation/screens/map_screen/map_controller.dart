@@ -103,7 +103,7 @@ class MapController extends GetxController {
       Get.snackbar(
         'No Location',
         'Please select a location on the map.',
-        snackPosition: SnackPosition.BOTTOM,
+        snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.black87,
         colorText: Colors.white,
         margin: const EdgeInsets.all(16),

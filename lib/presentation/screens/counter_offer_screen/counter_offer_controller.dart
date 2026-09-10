@@ -1,68 +1,46 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
+import 'package:technicianapp/core/models/chat_detail_model.dart';
 import 'package:technicianapp/core/services/socket_service.dart';
 import 'package:technicianapp/presentation/screens/counter_offer_screen/model/charges_model.dart';
-import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
-import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
-
-// ─── Message types ────────────────────────────────────────────────────────────
-enum MsgType { text, technicianOffer, adminOffer }
-
-// ─── Allowance (for the form + bubble snapshots) ──────────────────────────────
-class Allowance {
-  final String label;
-  final RxBool checked;
-  final TextEditingController amountCtrl;
-
-  Allowance(this.label, {bool checked = false, String amount = ''})
-      : checked = RxBool(checked),
-        amountCtrl = TextEditingController(text: amount);
-
-  void dispose() => amountCtrl.dispose();
-}
-
-// ─── Chat message ─────────────────────────────────────────────────────────────
-class ChatMessage {
-  final bool isUser; // true = technician
-  final MsgType type;
-  final String text;
-  final String time;
-
-  // technicianOffer fields
-  final String? counterAmount;
-  final List<Allowance>? allowances;
-  final String? proposal;
-
-  // adminOffer fields
-  final String? offerAmount;
-  /// null = pending action, true = accepted, false = countered
-  final RxnBool? actionTaken;
-
-  // for the charges-respond flow (optional)
-  final ChargeItem? chargeItem;
-
-  ChatMessage({
-    required this.isUser,
-    required this.type,
-    required this.text,
-    required this.time,
-    this.counterAmount,
-    this.allowances,
-    this.proposal,
-    this.offerAmount,
-    this.actionTaken,
-    this.chargeItem,
-  });
-}
+import 'package:technicianapp/presentation/screens/counter_offer_screen/model/counter_offer_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart'
+    hide Conversation;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CounterOfferController
+//
+// Arguments expected (passed via Get.toNamed arguments):
+//   { 'job': Jobs }
+//
+// The Jobs object may contain:
+//   - job.sId          → jobId  (always present)
+//   - job.assignedRequest → requestId (present when a request already exists)
+//
+// Flow:
+//   onInit:
+//     • Extract jobId from job.sId
+//     • Extract requestId from job.assignedRequest (if it is a String or Map
+//       with '_id' key)
+//     • If requestId is present → _loadConversation() directly
+//     • If requestId is absent  → show the blank form; first sendCounterOffer()
+//       will call requestJobApi and capture the new requestId
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ChargeType { fixedPrice, additionalCharges }
+
 class CounterOfferController extends GetxController {
   final ApiRepo _apiRepo = Get.find<ApiRepo>();
 
-  late NewJob job;
-  Requests? _initialRequest; // from dashboard data
+  late Jobs job;
+
+  // ── IDs ───────────────────────────────────────────────────────────────────
+  String _jobId = ''; // job._id  (never changes)
+  String? _requestId; // request._id (set after first offer or from args)
 
   // ── Controllers & scroll ──────────────────────────────────────────────────
   final TextEditingController messageController = TextEditingController();
@@ -73,14 +51,15 @@ class CounterOfferController extends GetxController {
   // ── State ─────────────────────────────────────────────────────────────────
   final RxList<ChatMessage> messages = <ChatMessage>[].obs;
   final RxBool showCounterForm = true.obs;
-  final RxBool showAdditionalCharges = false.obs;
   final RxBool isLoading = false.obs;
   final RxBool isSending = false.obs;
   final Rxn<InvoiceModel> invoice = Rxn<InvoiceModel>();
+  final RxBool isJobAccepted = false.obs;
 
-  String? _requestId;
+  // ── Charge type toggle (radio) ────────────────────────────────────────────
+  final Rx<ChargeType> chargeType = ChargeType.fixedPrice.obs;
 
-  // ── Allowance rows ────────────────────────────────────────────────────────
+  // ── Allowance rows (used only for additionalCharges mode) ─────────────────
   final allowances = <Allowance>[
     Allowance('Travel Fee'),
     Allowance('Spare Parts'),
@@ -88,124 +67,236 @@ class CounterOfferController extends GetxController {
     Allowance('Other'),
   ];
 
-  static const _backendLabels = ['Gas', 'Toll', 'Travel', 'Spare Parts', 'Extra Labor', 'Other'];
-
-  String _toBackendLabel(String ui) {
-    if (ui == 'Travel Fee') return 'Travel';
-    return _backendLabels.contains(ui) ? ui : 'Other';
-  }
+  ChatDetailModel? _chatDetail;
 
   // ─────────────────────────────────────────────────────────────────────────
-
   @override
   void onInit() {
     super.onInit();
 
-    // Arguments: either legacy NewJob or the new Map with job + request
     final args = Get.arguments;
-    if (args is Map) {
-      job = args['job'] as NewJob;
-      _initialRequest = args['request'] as Requests?;
-    } else {
-      job = args as NewJob;
+    job = (args is Map ? args['job'] : args) as Jobs;
+
+    // jobId — always the Jobs document _id
+    _jobId = job.sId ?? '';
+
+    // requestId — may come from assignedRequest (String _id or Map { _id: … })
+    final raw = job.assignedRequest;
+    if (raw is String && raw.isNotEmpty) {
+      _requestId = raw;
     }
 
-    _requestId = job.requestId;
+    // Opening coordinator message
+    messages.add(
+      ChatMessage(
+        isUser: false,
+        type: MsgType.text,
+        text:
+            'Hi, please make a counter offer with the fixed price you want '
+            'for this job. You can also add optional additional charges.',
+        time: _now(),
+      ),
+    );
 
-    // Seed the opening coordinator message
-    messages.add(ChatMessage(
-      isUser: false,
-      type: MsgType.text,
-      text: 'Hi, please make a counter offer with the fixed price you want '
-          'for this job. You can also add optional additional charges.',
-      time: _now(),
-    ));
-
-    // Populate from the conversation snapshot passed by the home screen
-    if (_initialRequest != null) {
-      _buildFromRequest(_initialRequest!);
+    if (_requestId != null && _requestId!.isNotEmpty) {
+      _loadConversation();
     }
 
     _listenToSocket();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
-  // ── Build chat bubbles from a Requests object ─────────────────────────────
-  //
-  // The dashboard `requests[].conversation[]` contains entries like:
-  //   { sender: 'technician', message: '...', counterOffer: 400, createdAt: '...' }
-  //   { sender: 'admin',      message: 'Request accepted.',       createdAt: '...' }
-  //
-  // `request.status`           → 'pending' | 'accepted' | 'rejected' | 'countered'
-  // `request.counterOffer`     → latest counter amount on the request
-  // `request.counterOfferFrom` → who sent the last counter ('technician'|'admin')
-  // ─────────────────────────────────────────────────────────────────────────────
-  void _buildFromRequest(Requests req) {
-    final convo = req.conversation ?? [];
-    if (convo.isEmpty) return;
+  // ── Load conversation ─────────────────────────────────────────────────────
+  Future<void> _loadConversation() async {
+    if (_requestId == null || _requestId!.isEmpty) return;
 
-    for (final entry in convo) {
+    try {
+      isLoading.value = true;
+
+      _chatDetail = await _apiRepo.getConversationApi(job.sId.toString());
+      final requestDetail = _chatDetail?.data?.request;
+      final reqStatus = requestDetail?.status ?? '';
+      final finalAmount = requestDetail?.counterOffer ?? 0;
+
+      if (finalAmount > 0) {}
+      isJobAccepted.value = reqStatus == 'accepted';
+
+      // Rebuild — keep only the opening coordinator message
+      messages.removeRange(1, messages.length);
+      showCounterForm.value = !isJobAccepted.value;
+
+      if (_chatDetail?.success == true &&
+          _chatDetail?.data?.conversation != null) {
+        _buildFromConversation(
+          entries: _chatDetail?.data?.conversation ?? [],
+          reqStatus: reqStatus,
+          finalAmount: finalAmount,
+        );
+      } else if (requestDetail?.sId != null) {
+        _handleStatusOnly(reqStatus, finalAmount, requestDetail?.createdAt);
+      }
+
+      messages.refresh();
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('[CounterOffer] _loadConversation error: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ── Build chat from conversation entries ──────────────────────────────────
+  void _buildFromConversation({
+    required List<Conversation> entries,
+    required String reqStatus,
+    required int finalAmount,
+  }) {
+    bool acceptedBubbleAdded = false;
+
+    for (int i = 0; i < entries.length; i++) {
+      final entry = entries[i];
       final isTech = entry.sender == 'technician';
       final time = _formatApiTime(entry.createdAt);
-      final text = entry.message ?? '';
-      final entryAmt = entry.counterOffer ?? 0; // now properly typed
+      final text = (entry.message ?? '').trim();
+      final entryAmt = entry.counterOffer ?? 0;
+      final entryCounterFrom = entry.counterOfferFrom ?? '';
+      final isLastEntry = i == entries.length - 1;
 
-      if (isTech && entryAmt > 0) {
-        // Technician counter offer bubble — amount is what the tech sent
-        messages.add(ChatMessage(
-          isUser: true,
-          type: MsgType.technicianOffer,
-          text: '',
-          time: time,
-          counterAmount: entryAmt.toString(),
-          proposal: req.note?.isNotEmpty == true ? req.note : null,
-        ));
-        showCounterForm.value = false;
-      } else if (!isTech) {
-        final isAccepted = req.status == 'accepted' ||
-            text.toLowerCase().contains('accepted');
-        final isRejected = req.status == 'rejected' ||
-            text.toLowerCase().contains('rejected');
+      if (isTech) {
+        if (entryAmt > 0) {
+          messages.add(
+            ChatMessage(
+              isUser: true,
+              type: MsgType.technicianOffer,
+              text: '',
+              time: time,
+              counterAmount: entryAmt.toString(),
+            ),
+          );
+          showCounterForm.value = false;
+        } else if (text.isNotEmpty) {
+          messages.add(
+            ChatMessage(
+              isUser: true,
+              type: MsgType.text,
+              text: text,
+              time: time,
+            ),
+          );
+        }
+      } else {
+        final isAdminCounter = entryCounterFrom == 'admin' && entryAmt > 0;
+        final textLower = text.toLowerCase();
+        final isAcceptanceMsg =
+            textLower.contains('accept') ||
+            (isLastEntry && reqStatus == 'accepted');
+        final isRejectionMsg =
+            textLower.contains('reject') ||
+            textLower.contains('declin') ||
+            (isLastEntry && reqStatus == 'rejected');
 
-        // Admin sent a revised counter-offer amount in this entry
-        final adminAmt = (entry.counterOfferFrom == 'admin' &&
-                entryAmt > 0)
-            ? entryAmt
-            : null;
-
-        if (adminAmt != null && !isAccepted && !isRejected) {
-          messages.add(ChatMessage(
-            isUser: false,
-            type: MsgType.adminOffer,
-            text: text.isNotEmpty
-                ? text
-                : 'Here is the admin\'s revised offer.',
-            time: time,
-            offerAmount: '\$$adminAmt',
-            actionTaken: RxnBool(null),
-          ));
+        if (isAdminCounter) {
+          messages.add(
+            ChatMessage(
+              isUser: false,
+              type: MsgType.adminOffer,
+              text: text.isNotEmpty
+                  ? text
+                  : "Here is the admin's revised offer.",
+              time: time,
+              offerAmount: '₹$entryAmt',
+              actionTaken: isLastEntry && reqStatus != 'accepted'
+                  ? RxnBool(null)
+                  : RxnBool(reqStatus == 'accepted' ? true : false),
+            ),
+          );
+          showCounterForm.value = false;
+        } else if (isAcceptanceMsg && !acceptedBubbleAdded) {
+          final amount = finalAmount > 0 ? finalAmount : entryAmt;
+          _addAcceptedBubble(amount, time);
+          acceptedBubbleAdded = true;
+          showCounterForm.value = false;
+        } else if (isRejectionMsg) {
+          messages.add(
+            ChatMessage(
+              isUser: false,
+              type: MsgType.text,
+              text: text.isNotEmpty
+                  ? text
+                  : '✗ Your offer was declined. Please send a new counter offer.',
+              time: time,
+            ),
+          );
+          if (isLastEntry) {
+            _resetForm();
+            showCounterForm.value = true;
+          }
         } else {
-          // Plain status / acceptance / rejection message
-          messages.add(ChatMessage(
-            isUser: false,
-            type: MsgType.text,
-            text: _adminStatusText(req.status, text),
-            time: time,
-          ));
-          if (isAccepted) showCounterForm.value = false;
-          // If rejected, let the tech send a new counter offer
-          if (isRejected) showCounterForm.value = true;
+          messages.add(
+            ChatMessage(
+              isUser: false,
+              type: MsgType.text,
+              text: text.isNotEmpty ? text : 'Your offer is under review.',
+              time: time,
+            ),
+          );
         }
       }
     }
 
-    messages.refresh();
+    if (reqStatus == 'accepted' && !acceptedBubbleAdded) {
+      _addAcceptedBubble(finalAmount, _now());
+      showCounterForm.value = false;
+    }
   }
 
-  String _adminStatusText(String? status, String raw) {
-    if (status == 'accepted') return '✓ Your counter offer has been accepted!';
-    if (status == 'rejected') return '✗ Your offer was declined. You may send a new counter offer.';
-    return raw.isNotEmpty ? raw : 'Your offer is under review.';
+  // ── Handle status-only response ───────────────────────────────────────────
+  void _handleStatusOnly(String reqStatus, int finalAmount, String? createdAt) {
+    final time = _formatApiTime(createdAt);
+    switch (reqStatus) {
+      case 'accepted':
+        _addAcceptedBubble(finalAmount, time);
+        showCounterForm.value = false;
+      case 'rejected':
+        messages.add(
+          ChatMessage(
+            isUser: false,
+            type: MsgType.text,
+            text: '✗ Your offer was declined. Please send a new counter offer.',
+            time: time,
+          ),
+        );
+        _resetForm();
+        showCounterForm.value = true;
+      case 'pending':
+      case 'counter-offer':
+      case 'countered':
+        if (finalAmount > 0) {
+          messages.add(
+            ChatMessage(
+              isUser: true,
+              type: MsgType.technicianOffer,
+              text: '',
+              time: time,
+              counterAmount: finalAmount.toString(),
+            ),
+          );
+          showCounterForm.value = false;
+        }
+    }
+  }
+
+  // ── Accepted bubble ───────────────────────────────────────────────────────
+  void _addAcceptedBubble(int amount, String time) {
+    messages.add(
+      ChatMessage(
+        isUser: false,
+        type: MsgType.accepted,
+        text: 'Your counter offer has been accepted. The job is now confirmed.',
+        time: time,
+        acceptedAmount: amount > 0 ? amount.toString() : null,
+      ),
+    );
   }
 
   // ── Socket ────────────────────────────────────────────────────────────────
@@ -213,209 +304,334 @@ class CounterOfferController extends GetxController {
     final socket = SocketService.instance;
     socket.reconnectIfNeeded();
 
-    // Join request room for scoped events
     if (_requestId != null && _requestId!.isNotEmpty) {
       socket.joinRequestRoom(_requestId!);
     }
 
-    // Reload from dashboard whenever the request or job updates
-    socket.on('request:updated', (_) => _reloadFromDashboard());
-    socket.on('request:status',  (_) => _reloadFromDashboard());
-    socket.on('job:updated',     (_) => _reloadFromDashboard());
-
-    // Charges/invoice events (for the extended charges flow)
-    socket.on('charge:reviewed',   (_) => _reloadFromDashboard());
-    socket.on('charge:responded',  (_) => _reloadFromDashboard());
-    socket.on('invoice:generated', (_) => _reloadFromDashboard());
-    socket.on('invoice:paid',      (_) => _reloadFromDashboard());
-  }
-
-  /// Re-fetches the dashboard and rebuilds the conversation from the matching request.
-  Future<void> _reloadFromDashboard() async {
-    try {
-      isLoading.value = true;
-      final dashboard = await _apiRepo.getTechnicianDashboardApi();
-      if (dashboard.success != true) return;
-
-      final req = dashboard.data?.requests?.firstWhereOrNull(
-        (r) => r.sId == _requestId || (r.job?.sId ?? '') == job.id,
-      );
-      if (req == null) return;
-
-      _initialRequest = req;
-
-      // Reset: keep only the opening coordinator message (index 0)
-      messages.removeRange(1, messages.length);
-      showCounterForm.value = true;
-
-      _buildFromRequest(req);
-      _scrollToBottom();
-    } catch (e) {
-      debugPrint('[CounterOffer] _reloadFromDashboard error: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  void _joinRequestRoomIfNeeded() {
-    if (_requestId == null || _requestId!.isEmpty) return;
-    SocketService.instance.joinRequestRoom(_requestId!);
+    socket.on('request:message', (_) => _loadConversation());
+    socket.on('request:updated', (_) => _loadConversation());
+    socket.on('request:status', (_) => _loadConversation());
+    socket.on('job:updated', (_) => _loadConversation());
+    socket.on('charge:reviewed', (_) => _loadConversation());
+    socket.on('charge:responded', (_) => _loadConversation());
+    socket.on('invoice:generated', (_) => _loadConversation());
+    socket.on('invoice:paid', (_) => _loadConversation());
   }
 
   // ── Plain text message ────────────────────────────────────────────────────
-  void sendMessage() {
+  Future<void> sendMessage() async {
     final text = messageController.text.trim();
     if (text.isEmpty) return;
-    messages.add(ChatMessage(
+
+    if (_requestId == null || _requestId!.isEmpty) {
+      AppSnackbar.error(
+        'Please send a counter offer first before messaging.',
+        title: 'Info',
+      );
+      return;
+    }
+
+    final optimistic = ChatMessage(
       isUser: true,
       type: MsgType.text,
       text: text,
       time: _now(),
-    ));
+    );
+    messages.add(optimistic);
     messageController.clear();
     _scrollToBottom();
-  }
 
-  // ── Toggle additional charges ─────────────────────────────────────────────
-  void toggleAdditionalCharges() =>
-      showAdditionalCharges.value = !showAdditionalCharges.value;
+    try {
+      isSending.value = true;
+      final response = await _apiRepo.sendMessageApi(
+        requestId: _requestId!,
+        message: text,
+      );
+      final body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) {
+        messages.remove(optimistic);
+        messageController.text = text;
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed to send message',
+          title: 'Error',
+        );
+        return;
+      }
+      await _loadConversation();
+    } catch (e) {
+      messages.remove(optimistic);
+      messageController.text = text;
+      AppSnackbar.error(
+        'Failed to send message. Check your connection.',
+        title: 'Error',
+      );
+    } finally {
+      isSending.value = false;
+    }
+  }
 
   // ── Send counter offer ────────────────────────────────────────────────────
   Future<void> sendCounterOffer() async {
-    final amountStr = counterAmountCtrl.text.trim();
-    if (amountStr.isEmpty) {
-      AppSnackbar.error('Please enter a counter amount.', title: 'Validation');
-      return;
-    }
-    final fixedPrice = double.tryParse(amountStr);
-    if (fixedPrice == null || fixedPrice <= 0) {
-      AppSnackbar.error('Enter a valid counter amount.', title: 'Validation');
-      return;
-    }
+    final isFixed = chargeType.value == ChargeType.fixedPrice;
 
-    // Build charges from checked + visible rows only
-    final List<Map<String, dynamic>> chargesPayload = [];
-    if (showAdditionalCharges.value) {
-      for (final a in allowances) {
-        if (!a.checked.value) continue;
-        final amt = double.tryParse(a.amountCtrl.text.trim()) ?? 0;
-        if (amt <= 0) {
-          AppSnackbar.error('Enter a valid amount for "${a.label}".', title: 'Validation');
-          return;
-        }
-        chargesPayload.add({
-          'label': _toBackendLabel(a.label),
-          'description': proposalCtrl.text.trim(),
-          'amount': amt,
-        });
+    // ── Validate ──────────────────────────────────────────────────────────
+    if (isFixed) {
+      final amountStr = counterAmountCtrl.text.trim();
+      if (amountStr.isEmpty) {
+        AppSnackbar.error(
+          'Please enter your counter amount.',
+          title: 'Validation',
+        );
+        return;
+      }
+      final parsed = double.tryParse(
+        amountStr.replaceAll('\$', '').replaceAll('₹', '').replaceAll(',', ''),
+      );
+      if (parsed == null || parsed <= 0) {
+        AppSnackbar.error(
+          'Enter a valid counter amount greater than 0.',
+          title: 'Validation',
+        );
+        return;
+      }
+    } else {
+      // Additional charges mode — at least one row must be checked with amount
+      final hasAny = allowances.any(
+        (a) =>
+            a.checked.value &&
+            a.amountCtrl.text.trim().isNotEmpty &&
+            (double.tryParse(
+                      a.amountCtrl.text
+                          .trim()
+                          .replaceAll('\$', '')
+                          .replaceAll(',', ''),
+                    ) ??
+                    0) >
+                0,
+      );
+      if (!hasAny) {
+        AppSnackbar.error(
+          'Please add at least one additional charge.',
+          title: 'Validation',
+        );
+        return;
       }
     }
 
     try {
       isSending.value = true;
-      if (_requestId == null) {
-        await _requestJobWithCharges(fixedPrice: fixedPrice, chargesPayload: chargesPayload);
+
+      if (isFixed) {
+        final fixedPrice = double.parse(
+          counterAmountCtrl.text
+              .trim()
+              .replaceAll('\$', '')
+              .replaceAll('₹', '')
+              .replaceAll(',', ''),
+        );
+
+        if (_requestId == null || _requestId!.isEmpty) {
+          // First offer — create the request
+          await _requestJobWithFixedPrice(fixedPrice: fixedPrice).then((value) {
+            _requestId = value['data']['request']['_id'];
+          });
+        } else {
+          // Re-counter — submit charges to existing request
+          await _submitChargesToExistingRequest(
+            charges: [
+              {
+                'label': 'Fixed Price',
+                'description': 'Counter offer fixed price',
+                'amount': fixedPrice,
+                'isFixedPrice': true,
+              },
+            ],
+            counterAmount: fixedPrice.toStringAsFixed(2),
+          );
+        }
       } else {
-        await _submitChargesToExistingRequest(fixedPrice: fixedPrice, chargesPayload: chargesPayload);
+        // Additional charges mode
+        final List<Map<String, dynamic>> chargesPayload = [];
+        for (final a in allowances) {
+          if (!a.checked.value) continue;
+          final amt =
+              double.tryParse(
+                a.amountCtrl.text
+                    .trim()
+                    .replaceAll('\$', '')
+                    .replaceAll('₹', '')
+                    .replaceAll(',', ''),
+              ) ??
+              0;
+          if (amt <= 0) {
+            AppSnackbar.error(
+              'Enter a valid amount for "${a.label}".',
+              title: 'Validation',
+            );
+            return;
+          }
+          chargesPayload.add({
+            'label': _toBackendLabel(a),
+            'description': a.label == 'Other'
+                ? a.otherLabelCtrl.text.trim()
+                : '',
+            'amount': amt,
+          });
+        }
+
+        if (_requestId == null || _requestId!.isEmpty) {
+          // No request yet — create one first (with no fixed price, only charges)
+          await _requestJobWithChargesOnly(chargesPayload: chargesPayload);
+        } else {
+          await _submitChargesToExistingRequest(
+            charges: chargesPayload,
+            counterAmount: null,
+          );
+        }
       }
     } finally {
       isSending.value = false;
     }
   }
 
-  // ── Case A: new request ───────────────────────────────────────────────────
-  Future<void> _requestJobWithCharges({
-    required double fixedPrice,
+  // ── Case A1: First offer — fixed price ────────────────────────────────────
+  Future _requestJobWithFixedPrice({required double fixedPrice}) async {
+    try {
+      final response = await _apiRepo.requestJobApi(
+        jobId: _jobId,
+        note: proposalCtrl.text.trim().isEmpty
+            ? null
+            : proposalCtrl.text.trim(),
+        fixedPrice: fixedPrice.round(),
+        charges: null,
+      );
+      final body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) {
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed to request job',
+          title: 'Error',
+        );
+        return;
+      }
+      _captureRequestId(body);
+      _addOfferBubble(fixedPrice.toStringAsFixed(2), isFixed: true);
+      AppSnackbar.success(
+        body['message'] as String? ?? 'Counter offer sent!',
+        title: 'Success',
+      );
+      await _loadConversation();
+      return response.data;
+    } catch (e) {
+      AppSnackbar.error(e.toString(), title: 'Error');
+    }
+  }
+
+  // ── Case A2: First offer — additional charges only ────────────────────────
+  Future<void> _requestJobWithChargesOnly({
     required List<Map<String, dynamic>> chargesPayload,
   }) async {
     try {
       final response = await _apiRepo.requestJobApi(
-        jobId: job.id,
-        note: proposalCtrl.text.trim().isEmpty ? null : proposalCtrl.text.trim(),
-        fixedPrice: fixedPrice,
-        charges: chargesPayload.isEmpty ? null : chargesPayload,
-      );
-      final body = response.data as Map<String, dynamic>;
-      if (body['success'] != true) {
-        AppSnackbar.error(body['message'] as String? ?? 'Failed to request job', title: 'Error');
-        return;
-      }
-
-      // Capture requestId
-      final nested = body['data'] as Map<String, dynamic>?;
-      final requestMap = nested?['request'] as Map<String, dynamic>?;
-      final newId = requestMap?['_id'] as String? ?? nested?['_id'] as String?;
-      if (newId != null && newId.isNotEmpty) {
-        _requestId = newId;
-        _joinRequestRoomIfNeeded();
-      }
-
-      // Use the exact amount the technician typed — never the charges sum
-      _addOfferBubble(fixedPrice.toStringAsFixed(2));
-      AppSnackbar.success(body['message'] as String? ?? 'Counter offer sent!', title: 'Success');
-
-      // Reload to sync server state
-      await _reloadFromDashboard();
-    } catch (e) {
-      AppSnackbar.error(e.toString(), title: 'Error');
-    }
-  }
-
-  // ── Case B: add charges to existing request ───────────────────────────────
-  Future<void> _submitChargesToExistingRequest({
-    required double fixedPrice,
-    required List<Map<String, dynamic>> chargesPayload,
-  }) async {
-    if (chargesPayload.isEmpty) {
-      // No additional charges — just resend the fixed price as a new counter offer
-      // by treating it as a plain re-request (or show info)
-      _addOfferBubble(fixedPrice.toStringAsFixed(2));
-      AppSnackbar.success('Counter offer updated!', title: 'Success');
-      await _reloadFromDashboard();
-      return;
-    }
-
-    try {
-      final response = await _apiRepo.submitChargesApi(
-        requestId: _requestId!,
+        jobId: _jobId,
+        note: proposalCtrl.text.trim().isEmpty
+            ? null
+            : proposalCtrl.text.trim(),
+        fixedPrice: null,
         charges: chargesPayload,
       );
       final body = response.data as Map<String, dynamic>;
       if (body['success'] != true) {
-        AppSnackbar.error(body['message'] as String? ?? 'Failed to submit charges', title: 'Error');
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed to request job',
+          title: 'Error',
+        );
         return;
       }
-      // Always show the fixed counter price in the bubble, not the charges sum
-      _addOfferBubble(fixedPrice.toStringAsFixed(2));
-      AppSnackbar.success(body['message'] as String? ?? 'Counter offer sent!', title: 'Success');
-      await _reloadFromDashboard();
+
+      _captureRequestId(body);
+      _addOfferBubble(null, isFixed: false);
+      AppSnackbar.success(
+        body['message'] as String? ?? 'Counter offer sent!',
+        title: 'Success',
+      );
+      await _loadConversation();
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
     }
   }
 
-  /// Appends the read-only technician offer bubble.
-  void _addOfferBubble(String counterAmount) {
-    final snapshot = showAdditionalCharges.value
+  // ── Case B: Re-counter on an existing request ─────────────────────────────
+  Future<void> _submitChargesToExistingRequest({
+    required List<Map<String, dynamic>> charges,
+    required String? counterAmount,
+  }) async {
+    try {
+      final response = await _apiRepo.submitChargesApi(
+        requestId: _chatDetail?.data?.request?.sId ?? _requestId!,
+        charges: charges,
+      );
+      final body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) {
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed to submit counter offer',
+          title: 'Error',
+        );
+        return;
+      }
+
+      _addOfferBubble(counterAmount, isFixed: counterAmount != null);
+      AppSnackbar.success(
+        body['message'] as String? ?? 'Counter offer sent!',
+        title: 'Success',
+      );
+      await _loadConversation();
+    } catch (e) {
+      AppSnackbar.error(e.toString(), title: 'Error');
+    }
+  }
+
+  // ── Capture requestId from response body ──────────────────────────────────
+  void _captureRequestId(Map<String, dynamic> body) {
+    final nested = body['data'] as Map<String, dynamic>?;
+    final requestMap = nested?['request'] as Map<String, dynamic>?;
+    final newId = requestMap?['_id'] as String? ?? nested?['_id'] as String?;
+    if (newId != null && newId.isNotEmpty) {
+      _requestId = newId;
+      SocketService.instance.joinRequestRoom(_requestId!);
+    }
+  }
+
+  // ── Optimistic offer bubble ───────────────────────────────────────────────
+  void _addOfferBubble(String? counterAmount, {required bool isFixed}) {
+    final snapshot = !isFixed
         ? allowances
-            .where((a) => a.checked.value && a.amountCtrl.text.trim().isNotEmpty)
-            .map((a) => Allowance(a.label, checked: true, amount: a.amountCtrl.text))
-            .toList()
+              .where(
+                (a) => a.checked.value && a.amountCtrl.text.trim().isNotEmpty,
+              )
+              .map(
+                (a) => Allowance(
+                  a.label,
+                  checked: true,
+                  amount: a.amountCtrl.text,
+                ),
+              )
+              .toList()
         : <Allowance>[];
     final proposal = proposalCtrl.text.trim();
 
-    messages.add(ChatMessage(
-      isUser: true,
-      type: MsgType.technicianOffer,
-      text: '',
-      time: _now(),
-      counterAmount: counterAmount, // ← always the fixed price, never the charges sum
-      allowances: snapshot.isEmpty ? null : snapshot,
-      proposal: proposal.isEmpty ? null : proposal,
-    ));
+    messages.add(
+      ChatMessage(
+        isUser: true,
+        type: MsgType.technicianOffer,
+        text: '',
+        time: _now(),
+        counterAmount: counterAmount,
+        allowances: snapshot.isEmpty ? null : snapshot,
+        proposal: proposal.isEmpty ? null : proposal,
+      ),
+    );
 
     showCounterForm.value = false;
-    showAdditionalCharges.value = false;
     _scrollToBottom();
   }
 
@@ -431,15 +647,19 @@ class CounterOfferController extends GetxController {
     }
     try {
       isSending.value = true;
-      final response = await _apiRepo.respondToChargeApi(chargeId: chargeId, action: 'accept');
+      final response = await _apiRepo.respondToChargeApi(
+        chargeId: chargeId,
+        action: 'accept',
+      );
       final body = response.data as Map<String, dynamic>;
       if (body['success'] == true) {
-        msg.actionTaken?.value = true;
-        messages.refresh();
         AppSnackbar.success('Offer accepted!', title: 'Success');
-        await _reloadFromDashboard();
+        await _loadConversation();
       } else {
-        AppSnackbar.error(body['message'] as String? ?? 'Failed', title: 'Error');
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed',
+          title: 'Error',
+        );
       }
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
@@ -462,17 +682,22 @@ class CounterOfferController extends GetxController {
     }
     try {
       isSending.value = true;
-      final response = await _apiRepo.respondToChargeApi(chargeId: chargeId, action: 'reject');
+      final response = await _apiRepo.respondToChargeApi(
+        chargeId: chargeId,
+        action: 'reject',
+      );
       final body = response.data as Map<String, dynamic>;
       if (body['success'] == true) {
-        msg.actionTaken?.value = false;
-        messages.refresh();
-        _resetForm();
-        showCounterForm.value = true;
-        AppSnackbar.success('You can now submit a new counter offer.', title: 'Info');
-        await _reloadFromDashboard();
+        AppSnackbar.success(
+          'You can now submit a new counter offer.',
+          title: 'Info',
+        );
+        await _loadConversation();
       } else {
-        AppSnackbar.error(body['message'] as String? ?? 'Failed', title: 'Error');
+        AppSnackbar.error(
+          body['message'] as String? ?? 'Failed',
+          title: 'Error',
+        );
       }
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
@@ -483,13 +708,24 @@ class CounterOfferController extends GetxController {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  String _toBackendLabel(Allowance a) {
+    if (a.label == 'Other') {
+      return a.otherLabelCtrl.text.trim().isEmpty
+          ? 'Other'
+          : a.otherLabelCtrl.text.trim();
+    }
+    if (a.label == 'Travel Fee') return 'Travel';
+    return a.label;
+  }
+
   void _resetForm() {
     counterAmountCtrl.clear();
     proposalCtrl.clear();
-    showAdditionalCharges.value = false;
+    chargeType.value = ChargeType.fixedPrice;
     for (final a in allowances) {
       a.checked.value = false;
       a.amountCtrl.clear();
+      a.otherLabelCtrl.clear();
     }
   }
 
@@ -529,6 +765,7 @@ class CounterOfferController extends GetxController {
     if (_requestId != null && _requestId!.isNotEmpty) {
       SocketService.instance.leaveRequestRoom(_requestId!);
     }
+    SocketService.instance.off('request:message');
     SocketService.instance.off('request:updated');
     SocketService.instance.off('request:status');
     SocketService.instance.off('job:updated');

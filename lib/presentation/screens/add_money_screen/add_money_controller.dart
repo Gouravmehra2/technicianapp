@@ -29,10 +29,10 @@ class AddMoneyController extends GetxController {
   void proceedToPay() {
     final amount = int.tryParse(amountController.text);
     if (amount == null || amount <= 0) {
-      Get.snackbar('Error', 'Please enter a valid amount', snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar('Error', 'Please enter a valid amount', snackPosition: SnackPosition.TOP);
       return;
     }
-    Get.snackbar('Success', 'Processing payment of \$$amount', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
+    Get.snackbar('Success', 'Processing payment of \$$amount', snackPosition: SnackPosition.TOP, backgroundColor: Colors.green, colorText: Colors.white);
   }
 
   @override

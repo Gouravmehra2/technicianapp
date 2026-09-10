@@ -6,7 +6,7 @@ import 'package:technicianapp/core/services/auth_service.dart';
 import 'api_exception.dart';
 
 class DioExceptionHandler {
-  static Object handle(DioException exception) {
+  static Future<ApiException> handle(DioException exception) async {
     switch (exception.type) {
       case DioExceptionType.connectionTimeout:
         return const ApiException(
@@ -39,15 +39,20 @@ class DioExceptionHandler {
         );
 
       case DioExceptionType.badResponse:
-        return _handleBadResponse(exception);
+        return await _handleBadResponse(exception);
 
       case DioExceptionType.unknown:
         return ApiException(
           message: exception.message ?? 'Something went wrong.',
         );
       case DioExceptionType.transformTimeout:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        return const ApiException(
+          message: 'Data transformation timeout.',
+        );
+      default:
+        return const ApiException(
+          message: 'Something went wrong.',
+        );
     }
   }
 

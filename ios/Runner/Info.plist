@@ -78,6 +78,9 @@
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Technicianapp uses your location to provide service location information and technician updates.</string>
 
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>We need your location in background to track job progress.</string>
+
 
     <!-- =====================================================
          NOTIFICATIONS
@@ -87,6 +90,23 @@
 
          Notification permission is requested at runtime.
          ===================================================== -->
+
+    <!-- =====================================================
+         BACKGROUND MODES
+         Required for Firebase Cloud Messaging (FCM) to
+         deliver silent push notifications and wake the app
+         when a remote notification arrives.
+         ===================================================== -->
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <!-- Allows FCM to deliver data-only (silent) pushes -->
+        <string>remote-notification</string>
+        <!-- Lets the OS call your background fetch handler -->
+        <string>fetch</string>
+        <!-- Required for background GPS location updates -->
+        <string>location</string>
+    </array>
 
 
     <!-- =====================================================
@@ -154,6 +174,15 @@
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+    <!-- =====================================================
+         URL SCHEMES FOR EXTERNAL APPS (url_launcher)
+         ===================================================== -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>comgooglemaps</string>
+        <string>https</string>
     </array>
 
 </dict>

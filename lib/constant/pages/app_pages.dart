@@ -53,8 +53,6 @@ import 'package:technicianapp/presentation/screens/payment_screen/payment_screen
 import 'package:technicianapp/presentation/screens/booking_confirmation_screen/booking_confirmation_screen.dart';
 import 'package:technicianapp/presentation/screens/booking_status_screen/booking_status_binding.dart';
 import 'package:technicianapp/presentation/screens/booking_status_screen/booking_status_screen.dart';
-import 'package:technicianapp/presentation/screens/live_tracking_screen/live_tracking_binding.dart';
-import 'package:technicianapp/presentation/screens/live_tracking_screen/live_tracking_screen.dart';
 import 'package:technicianapp/presentation/screens/service_review_screen/service_review_binding.dart';
 import 'package:technicianapp/presentation/screens/service_review_screen/service_review_screen.dart';
 import 'package:technicianapp/presentation/screens/tip_technician_screen/tip_technician_binding.dart';
@@ -91,6 +89,7 @@ import 'package:technicianapp/presentation/screens/identity_verification_screen/
 import 'package:technicianapp/presentation/screens/identity_verification_screen/identity_verification_screen.dart';
 import 'package:technicianapp/presentation/screens/professional_info_screen/professional_info_binding.dart';
 import 'package:technicianapp/presentation/screens/professional_info_screen/professional_info_screen.dart';
+import 'package:technicianapp/presentation/screens/schedule_job_screen/navigation_controller.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_binding.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_screen.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_detail_screen.dart';
@@ -264,12 +263,7 @@ class AppPages {
       binding: BookingStatusBinding(),
       transition: Transition.rightToLeftWithFade,
     ),
-    GetPage(
-      name: AppRoutes.liveTrackingScreen,
-      page: () => const LiveTrackingScreen(),
-      binding: LiveTrackingBinding(),
-      transition: Transition.rightToLeftWithFade,
-    ),
+
     GetPage(
       name: AppRoutes.serviceReviewScreen,
       page: () => const ServiceReviewScreen(),
@@ -368,7 +362,8 @@ class AppPages {
     ),
     GetPage(
       name: AppRoutes.scheduleJobNavigationScreen,
-      page: () => const ScheduleJobNavigationScreen(),
+      page: () =>  ScheduleJobNavigationScreen(),
+      binding: BindingsBuilder(() => Get.put(NavigationController())),
       transition: Transition.rightToLeftWithFade,
     ),
     GetPage(
@@ -479,7 +474,8 @@ class AppPages {
       name: AppRoutes.jobQuoteSentScreen,
       page: () => const JobQuoteSentScreen(),
       transition: Transition.rightToLeftWithFade,
-    ),GetPage(
+    ),
+    GetPage(
       name: AppRoutes.counterOfferScreen,
       page: () => const CounterOfferScreen(),
       transition: Transition.rightToLeftWithFade,

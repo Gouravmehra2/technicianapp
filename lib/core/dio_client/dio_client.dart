@@ -63,7 +63,7 @@ class DioClient {
         options: options,
       );
     } on DioException catch (e) {
-      throw DioExceptionHandler.handle(e);
+      throw await DioExceptionHandler.handle(e);
     }
   }
 
@@ -81,7 +81,7 @@ class DioClient {
         options: options,
       );
     } on DioException catch (e) {
-      throw DioExceptionHandler.handle(e);
+      throw await DioExceptionHandler.handle(e);
     }
   }
 
@@ -97,7 +97,7 @@ class DioClient {
         options: options,
       );
     } on DioException catch (e) {
-      throw DioExceptionHandler.handle(e);
+      throw await DioExceptionHandler.handle(e);
     }
   }
 
@@ -113,7 +113,7 @@ class DioClient {
         options: options,
       );
     } on DioException catch (e) {
-      throw DioExceptionHandler.handle(e);
+      throw await DioExceptionHandler.handle(e);
     }
   }
 
@@ -129,7 +129,7 @@ class DioClient {
         options: options,
       );
     } on DioException catch (e) {
-      throw DioExceptionHandler.handle(e);
+      throw await DioExceptionHandler.handle(e);
     }
   }
 }

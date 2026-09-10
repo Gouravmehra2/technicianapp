@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'package:device_preview_plus/device_preview_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -14,6 +12,8 @@ import 'package:technicianapp/core/services/language_service.dart';
 import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 import 'package:technicianapp/core/services/social_auth_service.dart';
+import 'package:technicianapp/core/services/location_sharing_service.dart';
+import 'package:technicianapp/core/services/socket_service.dart';
 import 'package:technicianapp/translations/app_translations.dart';
 
 void main() async {
@@ -71,7 +71,7 @@ Future<void> _registerServices() async {
   Get.put(LocationManager(), permanent: true);
 
   // Firebase — initialised before everything else so FCM is ready early.
-  await Get.putAsync(() => FirebaseService().init(), permanent: true);
+  // await Get.putAsync(() => FirebaseService().init(), permanent: true);
 
   // Network layer
   final dioClient = Get.put(DioClient(), permanent: true);
@@ -79,4 +79,10 @@ Future<void> _registerServices() async {
 
   // Auth — awaited so SplashController can read isLoggedIn synchronously
   await Get.putAsync(() => AuthService().init(), permanent: true);
+
+  // Socket — initialize early so it's ready when controllers call connectAndJoin
+  SocketService.instance.initialize();
+
+  // Location sharing — singleton for active-job GPS tracking
+  Get.put(LocationSharingService(), permanent: true);
 }

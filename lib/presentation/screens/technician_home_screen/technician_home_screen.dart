@@ -57,25 +57,8 @@ class TechnicianHomeScreen extends StatelessWidget {
 
                 // ── Rest on white background ───────────────────────────
                 const SizedBox(height: 8),
-                // Schedule section — shimmer while loading
-                Obx(() {
-                  if (controller.isLoading.value) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: AppShimmer(
-                            child: const ShimmerBox(width: 140, height: 20),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const ScheduleJobCardShimmer(),
-                      ],
-                    );
-                  }
-                  return ScheduleSection(controller: controller);
-                }),
+                // Schedule section — loading/empty handled internally
+                ScheduleSection(controller: controller),
                 const SizedBox(height: 16),
                 const BonusBanner(),
                 const SizedBox(height: 24),

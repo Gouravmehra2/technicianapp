@@ -71,11 +71,11 @@ class ScheduleJobCancelScreen extends GetView<ScheduleJobController> {
                     ],
                   ),
                   const Divider(height: 20),
-                  _InfoRow(icon: Icons.access_time_outlined, label: 'Started At', value: '10:55 AM'),
+                  InfoRow(icon: Icons.access_time_outlined, label: 'Started At', value: '10:55 AM'),
                   const SizedBox(height: 8),
-                  _InfoRow(icon: Icons.location_on_outlined, label: 'Location', value: 'House No. 123, Sector 14'),
+                  InfoRow(icon: Icons.location_on_outlined, label: 'Location', value: 'House No. 123, Sector 14'),
                   const SizedBox(height: 8),
-                  _InfoRow(icon: Icons.person_outline, label: 'Customer', value: 'Rohit Sharma'),
+                  InfoRow(icon: Icons.person_outline, label: 'Customer', value: 'Rohit Sharma'),
                 ],
               ),
             ),
@@ -238,11 +238,11 @@ class _SmallBadge extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
+class InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const InfoRow({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

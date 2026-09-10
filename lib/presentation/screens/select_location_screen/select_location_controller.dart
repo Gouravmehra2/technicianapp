@@ -98,7 +98,7 @@ class SelectLocationController extends GetxController {
       lng: result.lng,
     );
     Get.snackbar('Location Updated', result.address,
-        snackPosition: SnackPosition.BOTTOM);
+        snackPosition: SnackPosition.TOP);
     Get.back();
   }
 

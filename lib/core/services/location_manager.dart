@@ -181,6 +181,6 @@ class  LocationManager extends GetxService {
   // ── Snackbar helper ────────────────────────────────────────────────────────
 
   void _snackbar(String title, String message) {
-    Get.snackbar(title, message, snackPosition: SnackPosition.BOTTOM);
+    Get.snackbar(title, message, snackPosition: SnackPosition.TOP);
   }
 }

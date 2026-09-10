@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:technicianapp/core/models/user_model.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 
 /// Global auth state — persists token + user across app restarts.
 ///
@@ -84,6 +85,15 @@ class AuthService extends GetxService {
   // ── Logout ──────────────────────────────────────────────────────────────────
 
   Future<void> clearSession() async {
+    // Delete the FCM token from Firebase so this device stops receiving
+    // push notifications after logout. Do this before clearing auth state.
+    try {
+      final firebase = Get.find<FirebaseService>();
+      await firebase.deleteToken();
+    } catch (_) {
+      // FirebaseService may not be registered in test environments — safe to ignore.
+    }
+
     token.value = null;
     user.value = null;
 

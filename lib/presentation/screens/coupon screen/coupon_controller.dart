@@ -32,13 +32,13 @@ class CouponController extends GetxController {
   void applyCoupon() {
     final code = couponCodeController.text.trim();
     if (code.isEmpty) return;
-    Get.snackbar('Coupon', 'Applying coupon: $code', snackPosition: SnackPosition.BOTTOM);
+    Get.snackbar('Coupon', 'Applying coupon: $code', snackPosition: SnackPosition.TOP);
   }
 
   void redeemCode() {
     final code = redeemCodeController.text.trim();
     if (code.isEmpty) return;
-    Get.snackbar('Promo Code', 'Redeeming code: $code', snackPosition: SnackPosition.BOTTOM);
+    Get.snackbar('Promo Code', 'Redeeming code: $code', snackPosition: SnackPosition.TOP);
   }
 
   @override

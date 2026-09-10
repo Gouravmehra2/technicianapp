@@ -50,7 +50,7 @@ class BankPayoutController extends GetxController {
     Get.snackbar(
       'Verified',
       'Account verified successfully.',
-      snackPosition: SnackPosition.BOTTOM,
+      snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
   }
@@ -65,7 +65,7 @@ class BankPayoutController extends GetxController {
     Get.snackbar(
       'Saved',
       'Payout details updated.',
-      snackPosition: SnackPosition.BOTTOM,
+      snackPosition: SnackPosition.TOP,
       duration: const Duration(seconds: 2),
     );
   }

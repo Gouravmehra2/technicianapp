@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
+import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/firebase_options.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +44,8 @@ class FirebaseService extends GetxService {
 
   // ── Internal refs ─────────────────────────────────────────────────────────
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // Lazy — must NOT be accessed before Firebase.initializeApp() completes.
+  late final FirebaseMessaging _messaging;
 
   /// Name of the currently active chat screen route.
   /// Set this whenever a chat screen opens so notifications from that
@@ -62,6 +64,9 @@ class FirebaseService extends GetxService {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Assign messaging instance only AFTER Firebase is initialised.
+    _messaging = FirebaseMessaging.instance;
 
     // 2. Register background handler (Android / iOS)
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
@@ -124,21 +129,22 @@ class FirebaseService extends GetxService {
   /// Retrieve the device token.
   ///
   /// • Android  → standard FCM registration token.
-  /// • iOS      → FCM wraps APNs; we retrieve the FCM token which Firebase
-  ///              translates to APNs internally. We also read the raw APNs
-  ///              token separately so you can pass it to your backend if needed.
+  /// • iOS (real device) → waits for the APNs token with retries, then gets
+  ///   the FCM token which Firebase maps to APNs internally.
+  /// • iOS (simulator) → APNs is never available; skipped gracefully.
   Future<void> _fetchToken() async {
     try {
       if (Platform.isIOS) {
-        // Give APNs a moment to register before asking FCM for its token.
-        // Without this, getToken() may return null on first launch.
-        final apnsToken = await _messaging.getAPNSToken();
-        debugPrint('[FirebaseService] APNs token: $apnsToken');
-
+        final apnsToken = await _getApnsTokenWithRetry();
         if (apnsToken == null) {
-          // APNs token not ready yet — retry after a short delay.
-          await Future.delayed(const Duration(seconds: 2));
+          // Simulator or APNs genuinely unavailable — skip FCM token fetch.
+          debugPrint(
+            '[FirebaseService] APNs token unavailable (simulator or APNs not '
+            'ready). Skipping FCM token fetch.',
+          );
+          return;
         }
+        debugPrint('[FirebaseService] APNs token: $apnsToken');
       }
 
       final token = await _messaging.getToken();
@@ -147,6 +153,27 @@ class FirebaseService extends GetxService {
     } catch (e) {
       debugPrint('[FirebaseService] Token fetch error: $e');
     }
+  }
+
+  /// Polls for the APNs token up to [maxAttempts] times with an exponential
+  /// back-off. Returns null if the token never arrives (e.g. on a simulator).
+  Future<String?> _getApnsTokenWithRetry({
+    int maxAttempts = 5,
+    Duration initialDelay = const Duration(seconds: 1),
+  }) async {
+    Duration delay = initialDelay;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      final apnsToken = await _messaging.getAPNSToken();
+      if (apnsToken != null) return apnsToken;
+
+      debugPrint(
+        '[FirebaseService] APNs token not ready — attempt $attempt/$maxAttempts. '
+        'Retrying in ${delay.inSeconds}s…',
+      );
+      await Future.delayed(delay);
+      delay *= 2; // exponential back-off: 1s → 2s → 4s → 8s → 16s
+    }
+    return null;
   }
 
   /// Called automatically when the FCM token changes (rotation / reinstall).
@@ -282,22 +309,24 @@ class FirebaseService extends GetxService {
 
   /// Map notification type → app route.
   ///
-  /// Extend this with your own types / routes.
+  /// Extend this switch with any new notification types your backend sends.
+  /// The `data` map is the payload from the FCM message — match the keys
+  /// your backend uses.
   String? _routeForType(String? type, Map<String, dynamic> data) {
-    // Import AppRoutes lazily to keep this file dependency-free at compile time
-    // by using string literals. Replace with AppRoutes.xxx constants when you
-    // import the routes file.
     switch (type) {
       case 'chat':
-        return data['route']?.toString();
+        // Backend sends the target route directly in the payload.
+        return data['route']?.toString() ?? AppRoutes.chatSupportScreen;
       case 'job_request':
-        return '/job-detail';
+        return AppRoutes.jobDetailScreen;
       case 'job_accepted':
-        return '/schedule-job';
+        return AppRoutes.scheduleJobScreen;
       case 'payment':
-        return '/wallet';
+        return AppRoutes.walletScreen;
       case 'document_verified':
-        return '/profile';
+        return AppRoutes.profileScreen;
+      case 'notification':
+        return AppRoutes.notificationScreen;
       default:
         return null; // no navigation for unhandled types
     }
@@ -378,6 +407,7 @@ class FirebaseService extends GetxService {
   /// Force-refresh the FCM token and return the new value.
   ///
   /// Call this after login if the stored token may be stale.
+  /// Returns null on iOS simulator where APNs is unavailable.
   Future<String?> refreshToken() async {
     await _fetchToken();
     return fcmToken.value;

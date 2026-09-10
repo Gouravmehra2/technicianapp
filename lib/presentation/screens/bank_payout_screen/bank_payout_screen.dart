@@ -19,7 +19,9 @@ class BankPayoutScreen extends GetView<BankPayoutController> {
           leading: _BackButton(),
           title: Text(
             'Bank & Payout Details',
-            style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1),
+            style: AppTextStyle.titleLargeBold.copyWith(
+              color: AppColor.blackShade1,
+            ),
           ),
         ),
         body: controller.isEditing.value
@@ -34,6 +36,7 @@ class BankPayoutScreen extends GetView<BankPayoutController> {
 
 class _ReadView extends StatelessWidget {
   final BankPayoutController controller;
+
   const _ReadView({required this.controller});
 
   @override
@@ -63,15 +66,41 @@ class _ReadView extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Obx(() => _DetailRow(label: 'Bank Name', value: controller.bankName.value)),
+              Obx(
+                () => _DetailRow(
+                  label: 'Bank Name',
+                  value: controller.bankName.value,
+                ),
+              ),
               _Divider(),
-              Obx(() => _DetailRow(label: 'Account Holder', value: controller.accountHolder.value)),
+              Obx(
+                () => _DetailRow(
+                  label: 'Account Holder',
+                  value: controller.accountHolder.value,
+                ),
+              ),
               _Divider(),
-              Obx(() => _DetailRow(label: 'Account Number', value: controller.accountNumber.value)),
+              Obx(
+                () => _DetailRow(
+                  label: 'Account Number',
+                  value: controller.accountNumber.value,
+                ),
+              ),
               _Divider(),
-              Obx(() => _DetailRow(label: 'IFSC Code', value: controller.ifscCode.value)),
+              Obx(
+                () => _DetailRow(
+                  label: 'IFSC Code',
+                  value: controller.ifscCode.value,
+                ),
+              ),
               _Divider(),
-              Obx(() => _DetailRow(label: 'UPI ID', value: controller.upiId.value, isLast: true)),
+              Obx(
+                () => _DetailRow(
+                  label: 'UPI ID',
+                  value: controller.upiId.value,
+                  isLast: true,
+                ),
+              ),
             ],
           ),
         ),
@@ -118,15 +147,23 @@ class _DetailRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.coolGrayText),
+            style: AppTextStyle.bodyMediumRegular.copyWith(
+              color: AppColor.coolGrayText,
+            ),
           ),
           const Spacer(),
           Text(
             value,
-            style: AppTextStyle.titleSmallSemiBold.copyWith(color: AppColor.blackShade1),
+            style: AppTextStyle.titleSmallSemiBold.copyWith(
+              color: AppColor.blackShade1,
+            ),
           ),
           const SizedBox(width: 6),
-          const Icon(Icons.chevron_right, color: AppColor.coolGrayText, size: 16),
+          const Icon(
+            Icons.chevron_right,
+            color: AppColor.coolGrayText,
+            size: 16,
+          ),
         ],
       ),
     );
@@ -137,6 +174,7 @@ class _DetailRow extends StatelessWidget {
 
 class _EditView extends StatelessWidget {
   final BankPayoutController controller;
+
   const _EditView({required this.controller});
 
   @override
@@ -176,13 +214,15 @@ class _EditView extends StatelessWidget {
                     _FormField(
                       label: 'Bank Name',
                       controller: controller.bankNameCtrl,
-                      hint: 'e.g. HDFC Bank',
+                      hint: 'Swiss Bank',
+                      keyboardType: TextInputType.text,
                     ),
                     const SizedBox(height: 14),
                     _FormField(
                       label: 'Account Holder Name',
                       controller: controller.accountHolderCtrl,
                       hint: 'As per bank records',
+                      keyboardType: TextInputType.text,
                     ),
                     const SizedBox(height: 14),
                     _FormField(
@@ -249,7 +289,10 @@ class _EditView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _FieldBox(controller: controller.panCtrl, hint: 'ABCDE1234F'),
+                    _FieldBox(
+                      controller: controller.panCtrl,
+                      hint: 'ABCDE1234F',
+                    ),
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -270,7 +313,10 @@ class _EditView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _FieldBox(controller: controller.gstCtrl, hint: '22AAAAA0000A1Z5'),
+                    _FieldBox(
+                      controller: controller.gstCtrl,
+                      hint: '22AAAAA0000A1Z5',
+                    ),
 
                     const SizedBox(height: 20),
 
@@ -349,11 +395,17 @@ class _EditView extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.save_outlined, color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.save_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Save Payout Details',
-                        style: AppTextStyle.buttonLarge.copyWith(color: Colors.white),
+                        style: AppTextStyle.buttonLarge.copyWith(
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -363,11 +415,17 @@ class _EditView extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock_outline, size: 12, color: AppColor.coolGrayText),
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 12,
+                    color: AppColor.coolGrayText,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Bank-grade 256-bit AES Encryption',
-                    style: AppTextStyle.labelSmallRegular.copyWith(color: AppColor.coolGrayText),
+                    style: AppTextStyle.labelSmallRegular.copyWith(
+                      color: AppColor.coolGrayText,
+                    ),
                   ),
                 ],
               ),
@@ -406,7 +464,11 @@ class _EncryptionBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.shield_outlined, color: AppColor.brownAccentPrimary, size: 22),
+          const Icon(
+            Icons.shield_outlined,
+            color: AppColor.brownAccentPrimary,
+            size: 22,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -455,10 +517,16 @@ class _FormField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyle.bodySmallMedium.copyWith(color: AppColor.blackShade1),
+          style: AppTextStyle.bodySmallMedium.copyWith(
+            color: AppColor.blackShade1,
+          ),
         ),
         const SizedBox(height: 8),
-        _FieldBox(controller: controller, hint: hint, keyboardType: keyboardType),
+        _FieldBox(
+          controller: controller,
+          hint: hint,
+          keyboardType: keyboardType,
+        ),
       ],
     );
   }
@@ -480,11 +548,18 @@ class _FieldBox extends StatelessWidget {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      style: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.blackShade1),
+      style: AppTextStyle.bodyMediumRegular.copyWith(
+        color: AppColor.blackShade1,
+      ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.coolGrayText),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: AppTextStyle.bodyMediumRegular.copyWith(
+          color: AppColor.coolGrayText,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: AppColor.lightGreyColor),
@@ -524,8 +599,15 @@ class _BackButton extends StatelessWidget {
       onTap: () => Get.back(),
       child: Container(
         margin: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(color: Color(0xFFEEEEEE), shape: BoxShape.circle),
-        child: const Icon(Icons.chevron_left, color: AppColor.blackShade1, size: 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFFEEEEEE),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.chevron_left,
+          color: AppColor.blackShade1,
+          size: 24,
+        ),
       ),
     );
   }

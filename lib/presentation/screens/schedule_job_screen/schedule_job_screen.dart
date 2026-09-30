@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
+import 'package:technicianapp/constant/common_widgets/empty_api_state.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
@@ -90,15 +91,11 @@ class ScheduleJobScreen extends GetView<ScheduleJobController> {
                 );
               }
               if (controller.jobs.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No jobs scheduled',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 15,
-                      color: Colors.grey,
-                    ),
-                  ),
+                return EmptyApiState(
+                  title: 'No Jobs Scheduled',
+                  message:
+                      'Your scheduled jobs will appear here\nwhen they are assigned.',
+                  onRefresh: controller.loadSchedule,
                 );
               }
               return ListView.separated(
@@ -427,7 +424,7 @@ class _JobCard extends StatelessWidget {
 
                 // ── Action buttons ────────────────────────────────────────
                 // inprogress → skip navigate button (go to detail)
-                // on_the_way → navigate resumes live navigation
+                // ontheway → navigate resumes live navigation
                 // others     → navigate opens route preview
                 if (!isCompleted && !isInProgress) ...[
                   const SizedBox(height: 16),
@@ -458,7 +455,7 @@ class _JobCard extends StatelessWidget {
 
                 // ── Primary CTA ───────────────────────────────────────────
                 // inprogress → View Details (checklist screen)
-                // on_the_way → Resume Navigation (live map)
+                // ontheway → Resume Navigation (live map)
                 // upcoming   → View Details
                 // completed  → View Details
                 GestureDetector(
@@ -619,14 +616,16 @@ String _payDetailLabel(Jobs job) {
         return 'Est. \$$total  (\$$rate/hr × ${hours.toStringAsFixed(hours == hours.truncateToDouble() ? 0 : 1)}h)';
       }
       if (max > 0) return '\$$rate/hr • Max ${max}h';
-      if ((pay.approxHours ?? '').isNotEmpty) return '\$$rate/hr • ~${pay.approxHours}h';
+      if ((pay.approxHours ?? '').isNotEmpty)
+        return '\$$rate/hr • ~${pay.approxHours}h';
       return '\$$rate/hr';
     case 'perdevice':
     case 'per_device':
     case 'per-device':
       final rate = pay.perDeviceRate ?? 0;
       final max = pay.maxDevices ?? 0;
-      if (max > 0 && rate > 0) return 'Est. \$${rate * max}  (\$$rate × $max devices)';
+      if (max > 0 && rate > 0)
+        return 'Est. \$${rate * max}  (\$$rate × $max devices)';
       return max > 0 ? '\$$rate/device • Max $max devices' : '\$$rate/device';
     case 'blended':
       final fixed = pay.blendedFixedAmount ?? 0;
@@ -693,7 +692,7 @@ String _scheduleLabel(Jobs job) {
 String _fallbackDate(Jobs job) {
   // prefer jobDate.from / to
   final from = job.jobDate?.from ?? '';
-  final to   = job.jobDate?.to   ?? '';
+  final to = job.jobDate?.to ?? '';
   if (from.isNotEmpty && to.isNotEmpty) {
     return '${_fmtIso(from)} – ${_fmtTimeOnly(to)}';
   }
@@ -705,8 +704,18 @@ String _fallbackDate(Jobs job) {
   try {
     final dt = DateTime.parse(raw.toString()).toLocal();
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final m = dt.minute.toString().padLeft(2, '0');
@@ -721,8 +730,20 @@ String _fallbackDate(Jobs job) {
 String _fmtIso(String iso) {
   try {
     final dt = DateTime.parse(iso).toLocal();
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final m = dt.minute.toString().padLeft(2, '0');
     final p = dt.hour >= 12 ? 'PM' : 'AM';

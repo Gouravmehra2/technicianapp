@@ -18,7 +18,7 @@ dependencies:
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^8.1.0
   geolocator: ^14.0.2
-  geocoding: ^3.0.0
+  geocoding: ^5.0.0
   google_maps_flutter: ^2.18.0
   carousel_slider: ^5.0.0
   dotted_border: ^3.1.0
@@ -26,7 +26,9 @@ dependencies:
   image_picker: ^1.1.2
   device_preview_plus: ^2.8.0
   video_player: ^2.11.1
+  photo_view: ^0.15.0
   http: ^1.2.2
+  http_parser: ^4.1.2
   dio: ^5.8.0+1
   pretty_dio_logger: ^1.4.0
   shared_preferences: ^2.3.3
@@ -38,6 +40,8 @@ dependencies:
   readmore: ^3.0.0
   flutter_html: ^3.0.0-beta.2
   url_launcher: ^6.3.1
+  signature: ^5.5.0
+  flutter_local_notifications: ^22.3.1
 
 dev_dependencies:
   flutter_test:

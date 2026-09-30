@@ -1,3 +1,4 @@
+import 'package:technicianapp/core/services/location_sharing_service.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -244,11 +245,11 @@ class ScheduleJobController extends GetxController {
             lat: job.coordinates?.lat,
             lng: job.coordinates?.lng,
             rawJob: job,
-            status: job.status == 'in-progress'
+            status: (job.status ?? '').toLowerCase() == 'inprogress'
                 ? JobStatus.inProgress
-                : job.status == 'on_the_way'
+              : (job.status ?? '').toLowerCase() == 'ontheway'
                 ? JobStatus.onTheWay
-                : job.status == 'completed'
+              : (job.status ?? '').toLowerCase() == 'completed'
                 ? JobStatus.completed
                 : JobStatus.upcoming,
           );
@@ -379,6 +380,7 @@ class ScheduleJobController extends GetxController {
     try {
       final result = await _api.markCompletedApi(jobId);
       if (result.success) {
+        await LocationSharingService.to.stopForJob(jobId);
         toggleStep(ChecklistStep.collectPayment);
         AppSnackbar.success(
           result.message ?? 'Job marked as completed.',
@@ -397,13 +399,13 @@ class ScheduleJobController extends GetxController {
     }
   }
 
-  /// Returns the raw job _id for the currently in-progress (or first active) job.
+  /// Returns the raw job _id for the currently inprogress (or first active) job.
   String? get _activeJobId {
     final inProgress = jobs.firstWhereOrNull(
       (j) => j.status == JobStatus.inProgress,
     );
     if (inProgress != null) return inProgress.rawJobId;
-    // Fall back to first upcoming job if none is in-progress yet
+    // Fall back to first upcoming job if none is inprogress yet
     return jobs.firstOrNull?.rawJobId;
   }
 
@@ -434,13 +436,13 @@ class ScheduleJobController extends GetxController {
   }
 
   /// Opens Google Maps navigation to the job location.
-  void navigateJob(ScheduledJobModel job) {
-    if (job.lat != null && job.lng != null) {
-      MapLaunchHelper.navigateTo(lat: job.lat!, lng: job.lng!);
-    } else {
-      Get.toNamed(AppRoutes.scheduleJobNavigationScreen, arguments: job);
-    }
-  }
+  // void navigateJob(ScheduledJobModel job) {
+  //   if (job.lat != null && job.lng != null) {
+  //     MapLaunchHelper.navigateTo(lat: job.lat!, lng: job.lng!);
+  //   } else {
+  //     Get.toNamed(AppRoutes.scheduleJobNavigationScreen, arguments: job);
+  //   }
+  // }
 
   void pauseJob() {
     isPaused.value = true;

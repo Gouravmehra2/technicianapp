@@ -72,7 +72,7 @@ class Jobs {
   String? scheduledDate;
   String? visibleTo;
   List<String>? preferredSkills;
-  List<String>? requestedBy;
+  List<dynamic>? requestedBy;
   List<Tasks>? tasks;
   List<RescheduleHistory>? rescheduleHistory;
   List<Conversation>? conversation;
@@ -83,7 +83,7 @@ class Jobs {
   String? requestStatus;
 
   // Fields used across job screens but absent from the original model
-  int? budget;
+  num? budget;
   String? estimatedTime;
   String? serviceDate;
   Schedule? schedule;
@@ -179,7 +179,7 @@ class Jobs {
     scheduledDate = json['scheduledDate'];
     visibleTo = json['visibleTo'];
     preferredSkills = json['preferredSkills'].cast<String>();
-    requestedBy = json['requestedBy'].cast<String>();
+    requestedBy = json['requestedBy'];
     if (json['tasks'] != null) {
       tasks = <Tasks>[];
       json['tasks'].forEach((v) {
@@ -489,6 +489,15 @@ class Tasks {
   var distanceMeters;
   String? sId;
 
+  // ── Requirement flags coming from the API ─────────────────────────────────
+  bool? requiresNote;
+  bool? requiresImage;
+  bool? requiresSignature;
+  String? requirementReason;
+  String? completionNote;
+  String? completionImage;
+  String? signature;
+
   Tasks({
     this.title,
     this.group,
@@ -499,6 +508,13 @@ class Tasks {
     this.technicianLng,
     this.distanceMeters,
     this.sId,
+    this.requiresNote,
+    this.requiresImage,
+    this.requiresSignature,
+    this.requirementReason,
+    this.completionNote,
+    this.completionImage,
+    this.signature,
   });
 
   Tasks.fromJson(Map<String, dynamic> json) {
@@ -511,6 +527,21 @@ class Tasks {
     technicianLng = json['technicianLng'];
     distanceMeters = json['distanceMeters'];
     sId = json['_id'];
+    requiresNote = json['requiresNote'] as bool?;
+    requiresImage = json['requiresImage'] as bool?;
+    requiresSignature = json['requiresSignature'] as bool?;
+    requirementReason = json['requirementReason'] as String?;
+    completionNote = _readString(json, const [
+      'completionNote',
+      'note',
+      'additionalNote',
+    ]);
+    completionImage = _readMediaUrl(json, const [
+      'completionImage',
+      'image',
+      'imageUrl',
+    ]);
+    signature = _readMediaUrl(json, const ['signature', 'signatureUrl']);
   }
 
   Map<String, dynamic> toJson() {
@@ -524,7 +555,36 @@ class Tasks {
     data['technicianLng'] = this.technicianLng;
     data['distanceMeters'] = this.distanceMeters;
     data['_id'] = this.sId;
+    data['requiresNote'] = this.requiresNote;
+    data['requiresImage'] = this.requiresImage;
+    data['requiresSignature'] = this.requiresSignature;
+    data['requirementReason'] = this.requirementReason;
+    data['completionNote'] = this.completionNote;
+    data['completionImage'] = this.completionImage;
+    data['signature'] = this.signature;
     return data;
+  }
+
+  static String? _readString(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  static String? _readMediaUrl(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value;
+      if (value is Map) {
+        for (final nestedKey in const ['url', 'uri', 'path', 'secure_url']) {
+          final nested = value[nestedKey];
+          if (nested is String && nested.trim().isNotEmpty) return nested;
+        }
+      }
+    }
+    return null;
   }
 }
 

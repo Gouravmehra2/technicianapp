@@ -5,6 +5,8 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 
+final Geocoding geocoding = Geocoding();
+
 /// Result returned by [LocationManager.fetchLocation].
 class LocationResult {
   final bool success;
@@ -40,7 +42,7 @@ class LocationResult {
 ///   • Permission denied once     → re-request
 ///   • Permission denied forever  → settings dialog (Android & iOS)
 ///   • Silent check (no prompt)   → [checkIfGranted]
-class  LocationManager extends GetxService {
+class LocationManager extends GetxService {
   static LocationManager get to => Get.find<LocationManager>();
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -93,11 +95,16 @@ class  LocationManager extends GetxService {
   /// Converts lat/lng to a human-readable address string.
   static Future<String> reverseGeocode(double lat, double lng) async {
     try {
-      final placemarks = await placemarkFromCoordinates(lat, lng);
+      final placemarks = await geocoding
+          .placemarkFromCoordinates(lat, lng)
+          .timeout(const Duration(seconds: 5));
       final p = placemarks.first;
-      return [p.name, p.subLocality, p.locality, p.administrativeArea]
-          .where((s) => s != null && s.isNotEmpty)
-          .join(', ');
+      return [
+        p.name,
+        p.subLocality,
+        p.locality,
+        p.administrativeArea,
+      ].where((s) => s != null && s.isNotEmpty).join(', ');
     } catch (_) {
       return '$lat, $lng';
     }

@@ -1,12 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
-import 'package:technicianapp/core/services/firebase_service.dart';
 import 'package:technicianapp/core/services/location_manager.dart';
 import 'package:technicianapp/core/services/location_service.dart';
 
@@ -46,10 +43,6 @@ class SplashController extends GetxController {
       return;
     }
 
-    // User is already logged in — register/refresh the FCM token so the
-    // backend always has a valid token even after app reinstalls / token rotations.
-    // await _registerDeviceToken();
-
     // Token present — fetch fresh profile from server so we always
     // route based on the real current verificationStatus, not stale cache.
     try {
@@ -69,43 +62,6 @@ class SplashController extends GetxController {
     }
 
     _routeByStatus(auth);
-  }
-
-  /// Register (or re-register) the device push token with the backend.
-  /// Called on every app start when the user is logged in.
-  Future<void> _registerDeviceToken() async {
-    try {
-      final firebase = FirebaseService.to;
-
-      String? deviceToken = firebase.token;
-      if (deviceToken == null || deviceToken.isEmpty) {
-        deviceToken = await firebase.refreshToken();
-      }
-
-      if (deviceToken == null || deviceToken.isEmpty) {
-        debugPrint('[Splash] No FCM token available — skipping upload.');
-        return;
-      }
-
-      final platform = Platform.isIOS ? 'ios' : 'android';
-      await _apiRepo.updateFcmTokenApi(token: deviceToken, platform: platform);
-      debugPrint('[Splash] FCM token sent to server ($platform).');
-
-      // Keep the onTokenUpdated callback wired for future rotations.
-      firebase.onTokenUpdated = (newToken) async {
-        try {
-          await _apiRepo.updateFcmTokenApi(
-            token: newToken,
-            platform: Platform.isIOS ? 'ios' : 'android',
-          );
-          debugPrint('[FCM] Refreshed token sent to server.');
-        } catch (e) {
-          debugPrint('[FCM] Failed to send refreshed token: $e');
-        }
-      };
-    } catch (e) {
-      debugPrint('[Splash] FCM token registration failed (non-fatal): $e');
-    }
   }
 
   void _routeByStatus(AuthService auth) {

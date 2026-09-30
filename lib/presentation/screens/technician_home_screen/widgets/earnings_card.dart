@@ -24,8 +24,7 @@ class EarningsCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
@@ -34,9 +33,9 @@ class EarningsCard extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: Image.asset(AppAssets.earningIcon, height: 22),
+              child: Image.asset(AppAssets.earningIcon, height: 15),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 5),
             Text(
               'Total Earnings:',
               style: AppTextStyle.titleMediumSemiBold.copyWith(
@@ -45,13 +44,15 @@ class EarningsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Obx(() => Text(
-              controller.totalEarnings.value,
-              style: AppTextStyle.titleLargeBold.copyWith(
-                color: AppColor.brownColor,
-                fontSize: 24,
+            Obx(
+              () => Text(
+                controller.totalEarnings.value,
+                style: AppTextStyle.titleLargeBold.copyWith(
+                  color: AppColor.brownColor,
+                  fontSize: 24,
+                ),
               ),
-            )),
+            ),
             const Spacer(),
             const Icon(
               Icons.arrow_forward,

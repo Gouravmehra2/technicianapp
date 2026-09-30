@@ -185,191 +185,267 @@ class _JobDetailsCardState extends State<_JobDetailsCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8D5B0)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            initiallyExpanded: false,
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 4,
+    return Column(
+      children: [
+        Obx(() {
+          final status = widget.c.requestStatus.value;
+          if (status == null) return const SizedBox.shrink();
+          final request = status.request;
+          final statusLabel = request.status.replaceAll('-', ' ').capitalize!;
+          final chargeLabel = request.chargesStatus
+              .replaceAll('-', ' ')
+              .capitalize!;
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDF9F5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE8D5B0)),
             ),
-            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            expandedCrossAxisAlignment: CrossAxisAlignment.start,
-            onExpansionChanged: (val) => setState(() => _expanded = val),
-            title: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Icon(
-                  Icons.receipt_long_outlined,
-                  color: AppColor.brownAccentPrimary,
-                  size: 18,
+                _StatusPill(label: statusLabel, icon: Icons.sync_rounded),
+                _StatusPill(
+                  label: 'Charges: $chargeLabel',
+                  icon: Icons.receipt_long_outlined,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'Job Details',
-                  style: AppTextStyle.titleSmallSemiBold.copyWith(
-                    color: AppColor.brownAccentPrimary,
+                if (request.agreedTotal != null)
+                  _StatusPill(
+                    label:
+                        'Total: \$${request.agreedTotal!.toStringAsFixed(2)}',
+                    icon: Icons.attach_money_rounded,
                   ),
-                ),
               ],
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.c.job.budget != null && widget.c.job.budget! > 0)
-                  Text(
-                    '\$${widget.c.job.budget!.toStringAsFixed(0)}',
-                    style: AppTextStyle.labelSmallMedium.copyWith(
-                      color: AppColor.brownAccentPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                const SizedBox(width: 6),
-                AnimatedRotation(
-                  turns: _expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(
-                    Icons.keyboard_arrow_down,
-                    color: AppColor.brownAccentPrimary,
-                    size: 20,
-                    fontWeight: FontWeight.w500,
-                  ),
+          );
+        }),
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE8D5B0)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Theme(
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                initiallyExpanded: false,
+                tilePadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 4,
                 ),
-              ],
-            ),
-            children: [
-              Text(
-                widget.c.job.title ?? '',
-                style: AppTextStyle.titleMediumSemiBold.copyWith(
-                  color: AppColor.blackShade1,
-                ),
-              ),
-              const SizedBox(height: 2),
-              if (widget.c.job.sId != null && widget.c.job.sId!.isNotEmpty)
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'JOB ID: ',
-                        style: AppTextStyle.bodySmallRegular.copyWith(
-                          color: AppColor.blackColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                      TextSpan(
-                        text: '${widget.c.job.sId}',
-                        style: AppTextStyle.bodySmallRegular.copyWith(
-                          color: AppColor.brownAccentPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (widget.c.job.location != null &&
-                  widget.c.job.location!.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
+                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                onExpansionChanged: (val) => setState(() => _expanded = val),
+                title: Row(
                   children: [
                     const Icon(
-                      Icons.location_on_outlined,
+                      Icons.receipt_long_outlined,
+                      color: AppColor.brownAccentPrimary,
                       size: 18,
-                      color: AppColor.coolGrayText,
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        widget.c.job.location!,
-                        style: AppTextStyle.bodySmallRegular.copyWith(
-                          color: AppColor.coolGrayText,
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Job Details',
+                      style: AppTextStyle.titleSmallSemiBold.copyWith(
+                        color: AppColor.brownAccentPrimary,
                       ),
                     ),
                   ],
                 ),
-              ],
-              if (widget.c.job.description != null &&
-                  widget.c.job.description!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      left: BorderSide(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.c.job.budget != null && widget.c.job.budget! > 0)
+                      Text(
+                        '\$${widget.c.job.budget!.toStringAsFixed(0)}',
+                        style: AppTextStyle.labelSmallMedium.copyWith(
+                          color: AppColor.brownAccentPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down,
                         color: AppColor.brownAccentPrimary,
-                        width: 3,
+                        size: 20,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                  ],
+                ),
+                children: [
+                  Text(
+                    widget.c.job.title ?? '',
+                    style: AppTextStyle.titleMediumSemiBold.copyWith(
+                      color: AppColor.blackShade1,
+                    ),
                   ),
-                  child: _DescriptionContent(
-                    description: widget.c.job.description!,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              const Divider(color: Color(0xFFEEEEEE), height: 1),
-              const SizedBox(height: 10),
-              if (widget.c.job.scheduledDate != null &&
-                  widget.c.job.scheduledDate!.isNotEmpty)
-                InfoRow(
-                  icon: Icons.access_time_outlined,
-                  label: 'Scheduled Date',
-                  value: _formatDate(widget.c.job.scheduledDate),
-                )
-              else if (widget.c.job.serviceDate != null &&
-                  widget.c.job.serviceDate!.isNotEmpty)
-                InfoRow(
-                  icon: Icons.access_time_outlined,
-                  label: 'Service Date',
-                  value: _formatDate(widget.c.job.serviceDate),
-                )
-              else if (widget.c.job.createdAt != null &&
-                  widget.c.job.createdAt!.isNotEmpty)
-                InfoRow(
-                  icon: Icons.access_time_outlined,
-                  label: 'Posted On',
-                  value: _formatDate(widget.c.job.createdAt),
-                ),
-              if (widget.c.job.serviceType != null &&
-                  widget.c.job.serviceType?.name != null) ...[
-                const SizedBox(height: 8),
-                InfoRow(
-                  icon: Icons.build_outlined,
-                  label: 'Service Type',
-                  value: widget.c.job.serviceType?.name ?? '',
-                ),
-              ],
-              if (widget.c.job.budget != null && widget.c.job.budget! > 0) ...[
-                const SizedBox(height: 8),
-                InfoRow(
-                  icon: Icons.attach_money_outlined,
-                  label: 'Budget',
-                  value: '\$${widget.c.job.budget!.toStringAsFixed(2)}',
-                ),
-              ],
-              if (widget.c.job.estimatedTime != null &&
-                  widget.c.job.estimatedTime!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                InfoRow(
-                  icon: Icons.timer_outlined,
-                  label: 'Estimated Time',
-                  value: widget.c.job.estimatedTime!,
-                ),
-              ],
-            ],
+                  const SizedBox(height: 2),
+                  if (widget.c.job.sId != null && widget.c.job.sId!.isNotEmpty)
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'JOB ID: ',
+                            style: AppTextStyle.bodySmallRegular.copyWith(
+                              color: AppColor.blackColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          TextSpan(
+                            text: '${widget.c.job.sId}',
+                            style: AppTextStyle.bodySmallRegular.copyWith(
+                              color: AppColor.brownAccentPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (widget.c.job.location != null &&
+                      widget.c.job.location!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 18,
+                          color: AppColor.coolGrayText,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.c.job.location!,
+                            style: AppTextStyle.bodySmallRegular.copyWith(
+                              color: AppColor.coolGrayText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (widget.c.job.description != null &&
+                      widget.c.job.description!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: AppColor.brownAccentPrimary,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: _DescriptionContent(
+                        description: widget.c.job.description!,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFFEEEEEE), height: 1),
+                  const SizedBox(height: 10),
+                  if (widget.c.job.scheduledDate != null &&
+                      widget.c.job.scheduledDate!.isNotEmpty)
+                    InfoRow(
+                      icon: Icons.access_time_outlined,
+                      label: 'Scheduled Date',
+                      value: _formatDate(widget.c.job.scheduledDate),
+                    )
+                  else if (widget.c.job.serviceDate != null &&
+                      widget.c.job.serviceDate!.isNotEmpty)
+                    InfoRow(
+                      icon: Icons.access_time_outlined,
+                      label: 'Service Date',
+                      value: _formatDate(widget.c.job.serviceDate),
+                    )
+                  else if (widget.c.job.createdAt != null &&
+                      widget.c.job.createdAt!.isNotEmpty)
+                    InfoRow(
+                      icon: Icons.access_time_outlined,
+                      label: 'Posted On',
+                      value: _formatDate(widget.c.job.createdAt),
+                    ),
+                  if (widget.c.job.serviceType != null &&
+                      widget.c.job.serviceType?.name != null) ...[
+                    const SizedBox(height: 8),
+                    InfoRow(
+                      icon: Icons.build_outlined,
+                      label: 'Service Type',
+                      value: widget.c.job.serviceType?.name ?? '',
+                    ),
+                  ],
+                  if (widget.c.job.budget != null &&
+                      widget.c.job.budget! > 0) ...[
+                    const SizedBox(height: 8),
+                    InfoRow(
+                      icon: Icons.attach_money_outlined,
+                      label: 'Budget',
+                      value: '\$${widget.c.job.budget!.toStringAsFixed(2)}',
+                    ),
+                  ],
+                  if (widget.c.job.estimatedTime != null &&
+                      widget.c.job.estimatedTime!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    InfoRow(
+                      icon: Icons.timer_outlined,
+                      label: 'Estimated Time',
+                      value: widget.c.job.estimatedTime!,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _StatusPill({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE8D5B0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColor.brownAccentPrimary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTextStyle.labelSmallMedium.copyWith(
+              color: AppColor.brownAccentPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -464,10 +540,7 @@ class _DescriptionContentState extends State<_DescriptionContent> {
           padding: HtmlPaddings.zero,
         ),
         'p': Style(margin: Margins.only(bottom: 6)),
-        'li': Style(
-          fontSize: FontSize(13),
-          color: AppColor.coolGrayText,
-        ),
+        'li': Style(fontSize: FontSize(13), color: AppColor.coolGrayText),
         'strong': Style(
           fontWeight: FontWeight.w700,
           color: AppColor.blackShade1,
@@ -713,7 +786,8 @@ class _TechnicianOfferBubble extends StatelessWidget {
                           ],
                         ),
                       ),
-                    ] else if (hasAllowances) ...[
+                    ],
+                    if (hasAllowances) ...[
                       // ── Additional charges list ─────────────────────────────
                       Text(
                         'Additional Charges',
@@ -1075,71 +1149,82 @@ class _AdminOfferBubble extends StatelessWidget {
                           color: AppColor.brownAccentPrimary,
                         ),
                       ),
+                      if (msg.chargeItem != null &&
+                          msg.chargeItem!.counterHistory.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Negotiation history',
+                          style: AppTextStyle.bodySmallMedium.copyWith(
+                            color: AppColor.coolGrayText,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ...msg.chargeItem!.counterHistory.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Round ${entry.round}',
+                                  style: AppTextStyle.labelSmallMedium.copyWith(
+                                    color: AppColor.coolGrayText,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${entry.actor == 'technician' ? 'You' : 'Admin'} ${entry.action}',
+                                    style: AppTextStyle.bodySmallRegular
+                                        .copyWith(color: AppColor.blackShade1),
+                                  ),
+                                ),
+                                Text(
+                                  '\$${entry.amount.toStringAsFixed(2)}',
+                                  style: AppTextStyle.bodySmallMedium.copyWith(
+                                    color: AppColor.blackShade1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       Obx(() {
                         final taken = msg.actionTaken?.value;
+                        final charge = msg.chargeItem;
 
-                        if (taken == true) {
+                        if (charge != null && charge.status == 'rejected') {
                           return Padding(
                             padding: const EdgeInsets.only(top: 10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColor.lightGreen1Color,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle_outline,
-                                    size: 14,
-                                    color: Color(0xFF16a34a),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Offer Accepted',
-                                    style: AppTextStyle.bodySmallMedium
-                                        .copyWith(color: AppColor.green2Color),
-                                  ),
-                                ],
-                              ),
+                            child: _OfferStatus(
+                              label: 'Charge Rejected',
+                              color: const Color(0xFFB42318),
+                              background: const Color(0xFFFFE4E8),
+                              icon: Icons.cancel_outlined,
+                            ),
+                          );
+                        }
+
+                        if (taken == true) {
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 10),
+                            child: _OfferStatus(
+                              label: 'Offer Accepted',
+                              color: Color(0xFF16a34a),
+                              background: Color(0xFFDCFCE7),
+                              icon: Icons.check_circle_outline,
                             ),
                           );
                         }
 
                         if (taken == false) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF5EDD8),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.reply_outlined,
-                                    size: 14,
-                                    color: AppColor.brownAccentPrimary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Counter Offer Sent',
-                                    style: AppTextStyle.bodySmallMedium
-                                        .copyWith(
-                                          color: AppColor.brownAccentPrimary,
-                                        ),
-                                  ),
-                                ],
-                              ),
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 10),
+                            child: _OfferStatus(
+                              label: 'Waiting for admin',
+                              color: AppColor.brownAccentPrimary,
+                              background: Color(0xFFF5EDD8),
+                              icon: Icons.hourglass_empty_rounded,
                             ),
                           );
                         }
@@ -1149,8 +1234,27 @@ class _AdminOfferBubble extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              TextButton(
+                                onPressed: c.isSending.value
+                                    ? null
+                                    : c.rejectFixedOffer,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFFB42318),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Reject'),
+                              ),
+                              const SizedBox(width: 2),
                               OutlinedButton(
-                                onPressed: () => c.counterAdminOffer(msg),
+                                onPressed: c.isSending.value
+                                    ? null
+                                    : () => c.counterAdminOffer(msg),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColor.brownAccentPrimary,
                                   side: const BorderSide(
@@ -1176,7 +1280,9 @@ class _AdminOfferBubble extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
-                                onPressed: () => c.acceptOffer(msg),
+                                onPressed: c.isSending.value
+                                    ? null
+                                    : () => c.acceptOffer(msg),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColor.brownAccentPrimary,
                                   shape: RoundedRectangleBorder(
@@ -1222,6 +1328,42 @@ class _AdminOfferBubble extends StatelessWidget {
   }
 }
 
+class _OfferStatus extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color background;
+  final IconData icon;
+
+  const _OfferStatus({
+    required this.label,
+    required this.color,
+    required this.background,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyle.bodySmallMedium.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Counter Offer Form Section
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1243,13 +1385,6 @@ class _CounterOfferFormSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-
-        // ── Radio selector — outside the brown card so it stands on its own ──
-        _ChargeTypeSelector(c: c),
-
-        const SizedBox(height: 10),
-
-        // ── Brown card — contents switch based on chargeType ─────────────────
         Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
@@ -1257,221 +1392,127 @@ class _CounterOfferFormSection extends StatelessWidget {
             color: AppColor.brownAccentPrimary,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Obx(() {
-            final isFixed = c.chargeType.value == ChargeType.fixedPrice;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isFixed) ...[
-                  // ── Fixed price amount ──────────────────────────────────
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Fixed Price',
+                style: AppTextStyle.bodySmallMedium.copyWith(
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _WhiteField(
+                controller: c.counterAmountCtrl,
+                prefix: '\$ ',
+                hint: 'Enter your fixed price',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                large: true,
+                readOnly: false,
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
                   Text(
-                    'Counter Amount',
+                    'Additional Charges',
                     style: AppTextStyle.bodySmallMedium.copyWith(
                       color: Colors.white70,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  _WhiteField(
-                    controller: c.counterAmountCtrl,
-                    prefix: '\$ ',
-                    hint: 'Enter your counter amount',
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  const Spacer(),
+                  Text(
+                    'Optional',
+                    style: AppTextStyle.labelSmallRegular.copyWith(
+                      color: Colors.white54,
                     ),
-                    large: true,
-                    readOnly: false,
-                  ),
-                ] else ...[
-                  // ── Additional charges rows ──────────────────────────────
-                  Row(
-                    children: [
-                      Text(
-                        'Additional Charges',
-                        style: AppTextStyle.bodySmallMedium.copyWith(
-                          color: Colors.white70,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        'Select & enter amounts',
-                        style: AppTextStyle.labelSmallRegular.copyWith(
-                          color: Colors.white54,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ...c.allowances.map(
-                    (a) => _EditableAllowanceRow(allowance: a),
                   ),
                 ],
-
-                const SizedBox(height: 14),
-
-                // ── Your Proposal (shared) ──────────────────────────────────
-                Text(
-                  'Your Proposal (optional)',
-                  style: AppTextStyle.bodySmallMedium.copyWith(
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    controller: c.proposalCtrl,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: 'Describe your proposal... (optional)',
-                      hintStyle: AppTextStyle.bodySmallRegular.copyWith(
-                        color: AppColor.coolGrayText,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.all(12),
-                    ),
-                    style: AppTextStyle.bodySmallRegular.copyWith(
-                      color: AppColor.blackShade1,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // ── Send button ─────────────────────────────────────────────
-                SizedBox(
-                  width: double.infinity,
-                  child: Obx(
-                    () => ElevatedButton(
-                      onPressed: c.isSending.value
-                          ? null
-                          : () => c.sendCounterOffer(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
-                        disabledBackgroundColor: Colors.white70,
-                      ),
-                      child: c.isSending.value
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColor.brownAccentPrimary,
-                              ),
-                            )
-                          : Text(
-                              'Send Counter Offer',
-                              style: AppTextStyle.buttonMedium.copyWith(
-                                color: AppColor.brownAccentPrimary,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Charge type radio selector
-// ─────────────────────────────────────────────────────────────────────────────
-class _ChargeTypeSelector extends StatelessWidget {
-  final CounterOfferController c;
-
-  const _ChargeTypeSelector({required this.c});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final selected = c.chargeType.value;
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5EDD8),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          children: [
-            _RadioOption(
-              label: 'Fixed Price',
-              icon: Icons.attach_money_rounded,
-              isSelected: selected == ChargeType.fixedPrice,
-              onTap: () => c.chargeType.value = ChargeType.fixedPrice,
-            ),
-            _RadioOption(
-              label: 'Additional Charges',
-              icon: Icons.add_circle_outline_rounded,
-              isSelected: selected == ChargeType.additionalCharges,
-              onTap: () => c.chargeType.value = ChargeType.additionalCharges,
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
-
-class _RadioOption extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _RadioOption({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColor.brownAccentPrimary
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(26),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected ? Colors.white : AppColor.brownAccentPrimary,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(height: 4),
               Text(
-                label,
+                'Add travel, parts, or extra labor to your offer.',
+                style: AppTextStyle.labelSmallRegular.copyWith(
+                  color: Colors.white60,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...c.allowances.map((a) => _EditableAllowanceRow(allowance: a)),
+
+              const SizedBox(height: 14),
+
+              // ── Your Proposal (shared) ──────────────────────────────────
+              Text(
+                'Your Proposal (optional)',
                 style: AppTextStyle.bodySmallMedium.copyWith(
-                  color: isSelected
-                      ? Colors.white
-                      : AppColor.brownAccentPrimary,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: TextField(
+                  controller: c.proposalCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Describe your proposal... (optional)',
+                    hintStyle: AppTextStyle.bodySmallRegular.copyWith(
+                      color: AppColor.coolGrayText,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                  style: AppTextStyle.bodySmallRegular.copyWith(
+                    color: AppColor.blackShade1,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ── Send button ─────────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                child: Obx(
+                  () => ElevatedButton(
+                    onPressed: c.isSending.value
+                        ? null
+                        : () => c.sendCounterOffer(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                      disabledBackgroundColor: Colors.white70,
+                    ),
+                    child: c.isSending.value
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColor.brownAccentPrimary,
+                            ),
+                          )
+                        : Text(
+                            'Send Counter Offer',
+                            style: AppTextStyle.buttonMedium.copyWith(
+                              color: AppColor.brownAccentPrimary,
+                            ),
+                          ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

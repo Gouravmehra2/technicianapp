@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
@@ -67,58 +69,61 @@ class OverviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           // Grid of 4 stats
-          Obx(
-            () => GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.3,
-              padding: EdgeInsets.zero,
-              children: [
-                _StatTile(
-                  icon: Icons.folder_open_rounded,
-                  value: '${controller.newJobs.length}',
-                  label: 'New Jobs',
-                  badge: '${controller.newJobs.length}',
-                  onTap: () {
-                    controller.dashboardController.changeIndex(index: 1);
-                    controller.jobController.selectedTab.value =
-                        JobTabType.newJobs;
-                  },
-                ),
-                _StatTile(
-                  icon: Icons.description_outlined,
-                  value: '${controller.activeJob.value}',
-                  label: 'Active Jobs',
-                  onTap: () {
-                    controller.dashboardController.changeIndex(index: 1);
-                    controller.jobController.selectedTab.value =
-                        JobTabType.activeJobs;
-                  },
-                ),
-                _StatTile(
-                  icon: Icons.calendar_today_outlined,
-                  value: '${controller.todayJobCount.value}',
-                  label: "Today's  Schedule",
-                  onTap: () {
-                    controller.dashboardController.changeIndex(index: 2);
-                  },
-                ),
-                _StatTile(
-                  icon: Icons.bar_chart_rounded,
-                  value: '${controller.requestCount.value ?? 0}',
-                  label: 'Requests',
-                  onTap: () {
-                    controller.dashboardController.changeIndex(index: 1);
-                    controller.jobController.selectedTab.value =
-                        JobTabType.requestedJob;
-                    controller.jobController.api.getRequestedJobsApi();
-                  },
-                ),
-              ],
-            ),
+          GetBuilder(
+            init: controller,
+            builder: (controller) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  // Each tile width = (total width - one gap) / 2
+                  final tileWidth = (constraints.maxWidth - 10) / 2;
+                  // Height scales with width using a responsive ratio,
+                  // clamped so it never overflows on small screens.
+                  final tileHeight = (tileWidth / 1.3).clamp(80.0, 130.0);
+
+                  return GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: tileWidth / tileHeight,
+                    padding: EdgeInsets.zero,
+                    children: [
+                      _StatTile(
+                        icon: Icons.folder_open_rounded,
+                        value: '${controller.newJobs.length}',
+                        label: 'New Jobs',
+                        badge: '${controller.newJobs.length}',
+                        tileHeight: tileHeight,
+                        onTap: () => controller.openJobsTab(JobTabType.newJobs),
+                      ),
+                      _StatTile(
+                        icon: Icons.description_outlined,
+                        value: '${controller.activeJob.value}',
+                        label: 'Active Jobs',
+                        tileHeight: tileHeight,
+                        onTap: () => controller.openJobsTab(JobTabType.activeJobs),
+                      ),
+                      _StatTile(
+                        icon: Icons.calendar_today_outlined,
+                        value: '${controller.todayJobCount.value}',
+                        label: "Today's Schedule",
+                        tileHeight: tileHeight,
+                        onTap: controller.openScheduleTab,
+                      ),
+                      _StatTile(
+                        icon: Icons.bar_chart_rounded,
+                        value: '${controller.requestCount.value ?? 0}',
+                        label: 'Requests',
+                        tileHeight: tileHeight,
+                        onTap: () =>
+                            controller.openJobsTab(JobTabType.requestedJob),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -132,21 +137,33 @@ class _StatTile extends StatelessWidget {
   final String label;
   final String? badge;
   final VoidCallback onTap;
+  final double tileHeight;
 
-  _StatTile({
+  const _StatTile({
     required this.icon,
     required this.value,
     required this.label,
     required this.onTap,
+    required this.tileHeight,
     this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Scale font sizes and icon proportionally to tile height.
+    // Base design targets a tile height of ~100px.
+    final scale = (tileHeight / 100).clamp(0.75, 1.2);
+    final valueFontSize = (20 * scale).clamp(14.0, 22.0);
+    final labelFontSize = (13 * scale).clamp(10.0, 15.0);
+    final iconSize = (20 * scale).clamp(16.0, 24.0);
+    final iconPadding = (8 * scale).clamp(5.0, 8.0);
+    final verticalGap = (8 * scale).clamp(4.0, 10.0);
+
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        // padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.only(top: Platform.isAndroid ? 5.0:0.0),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(14),
@@ -157,31 +174,37 @@ class _StatTile extends StatelessWidget {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(iconPadding),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: AppColor.brownColor, size: 22),
+              child: Icon(icon, color: AppColor.brownColor, size: iconSize),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: verticalGap),
             Text(
               value,
               style: AppTextStyle.headlineLargeBold.copyWith(
                 color: Colors.white,
-                fontSize: 22,
+                fontSize: valueFontSize,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: AppTextStyle.bodySmallMedium.copyWith(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            SizedBox(height: verticalGap * 0.3),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyle.bodySmallMedium.copyWith(
+                  color: Colors.white,
+                  fontSize: labelFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],

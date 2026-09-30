@@ -27,7 +27,8 @@ class ScheduleSection extends StatelessWidget {
 
   String _getStatusDisplay(String? status) {
     if (status == null) return 'UPCOMING';
-    if (status.toLowerCase() == 'in-progress') return 'IN PROGRESS';
+    if (status.toLowerCase() == 'inprogress') return 'IN PROGRESS';
+    if (status.toLowerCase() == 'ontheway') return 'ON THE WAY';
     return status.toUpperCase();
   }
 
@@ -130,10 +131,13 @@ class _ScheduleJobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isInProgress = job.status?.toLowerCase() == 'in-progress';
+    final normalizedStatus = (job.status ?? '').toLowerCase();
+    final bool isInProgress = normalizedStatus == 'assigned';
+    final bool isOnTheWay = normalizedStatus == 'ontheway';
+
     // Prefer jobDate.from/to range; fall back to scheduledDate / serviceDate
     final String from = job.jobDate?.from ?? '';
-    final String to   = job.jobDate?.to   ?? '';
+    final String to = job.jobDate?.to ?? '';
     final String time = () {
       if (from.isNotEmpty && to.isNotEmpty) {
         return '${formatTime(from)} – ${formatTime(to)}';
@@ -150,8 +154,18 @@ class _ScheduleJobCard extends StatelessWidget {
       if (rawFrom.isEmpty) return '';
       try {
         const months = [
-          'Jan','Feb','Mar','Apr','May','Jun',
-          'Jul','Aug','Sep','Oct','Nov','Dec',
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
         ];
         final dtFrom = DateTime.parse(rawFrom).toLocal();
         final fromStr = '${months[dtFrom.month - 1]} ${dtFrom.day}';
@@ -186,13 +200,55 @@ class _ScheduleJobCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isOnTheWay ? const Color(0xFFF0F7FF) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8D5B0), width: 1),
+        border: Border.all(
+          color: isOnTheWay
+              ? const Color(0xFF1A73E8).withValues(alpha: 0.35)
+              : const Color(0xFFE8D5B0),
+          width: isOnTheWay ? 1.5 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── On The Way banner ──────────────────────────────────────────
+          if (isOnTheWay) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A73E8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Transform.rotate(
+                    angle: 45,
+                    child: Icon(
+                      Icons.navigation,
+                      color: Colors.white,
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'On The Way — Navigation Active',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // ── Time + status ──────────────────────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,10 +299,16 @@ class _ScheduleJobCard extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: isInProgress ? const Color(0xFFF5EDD8) : Colors.white,
+                  color: isOnTheWay
+                      ? const Color(0xFFE3F2FD)
+                      : isInProgress
+                      ? const Color(0xFFF5EDD8)
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isInProgress
+                    color: isOnTheWay
+                        ? const Color(0xFF1A73E8)
+                        : isInProgress
                         ? AppColor.brownAccentPrimary
                         : AppColor.coolGrayText,
                     width: 1,
@@ -255,17 +317,24 @@ class _ScheduleJobCard extends StatelessWidget {
                 child: Text(
                   status,
                   style: AppTextStyle.labelSmallMedium.copyWith(
-                    color: isInProgress
+                    color: isOnTheWay
+                        ? const Color(0xFF1A73E8)
+                        : isInProgress
                         ? AppColor.brownAccentPrimary
                         : AppColor.coolGrayText,
                     letterSpacing: 0.3,
                   ),
                 ),
               ),
-              if (isInProgress)
-                const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: CircleAvatar(backgroundColor: Colors.green, radius: 5),
+              if (isInProgress || isOnTheWay)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: CircleAvatar(
+                    backgroundColor: isOnTheWay
+                        ? const Color(0xFF1A73E8)
+                        : Colors.green,
+                    radius: 5,
+                  ),
                 ),
             ],
           ),
@@ -339,69 +408,38 @@ class _ScheduleJobCard extends StatelessWidget {
             text: controller.jobController.estPayLabel(job),
             bold: true,
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => controller.onNavigateJobTapped(job),
-                  icon: const Icon(Icons.navigation_outlined, size: 16),
-                  label: const Text('NAVIGATE'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColor.blackShade1,
-                    side: const BorderSide(color: Color(0xFFDDDDDD)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    textStyle: AppTextStyle.labelSmallMedium.copyWith(
-                      letterSpacing: 0.5,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => controller.onContactSupportJobTapped(job),
-                  icon: const Icon(Icons.headset_mic_outlined, size: 16),
-                  label: const Text('CONTACT SUPPORT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColor.blackShade1,
-                    side: const BorderSide(color: Color(0xFFDDDDDD)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    textStyle: AppTextStyle.labelSmallMedium.copyWith(
-                      letterSpacing: 0.5,
-                      fontSize: 9,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // ── View Details button ────────────────────────────────────────
+          // ── View Details / Resume Navigation button ──────────────────
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => controller.onViewDetailsJobTapped(job),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColor.brownAccentPrimary,
+                backgroundColor: isOnTheWay
+                    ? const Color(0xFF1A73E8)
+                    : AppColor.brownAccentPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 elevation: 0,
               ),
-              child: Text(
-                'Click to view Details',
-                style: AppTextStyle.buttonMedium.copyWith(
-                  color: Colors.white,
-                  fontStyle: FontStyle.italic,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (isOnTheWay) ...[
+                    const Icon(Icons.navigation, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    isOnTheWay ? 'Resume Navigation' : 'Click to view Details',
+                    style: AppTextStyle.buttonMedium.copyWith(
+                      color: Colors.white,
+                      fontStyle: isOnTheWay
+                          ? FontStyle.normal
+                          : FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

@@ -89,6 +89,7 @@ import 'package:technicianapp/presentation/screens/identity_verification_screen/
 import 'package:technicianapp/presentation/screens/identity_verification_screen/identity_verification_screen.dart';
 import 'package:technicianapp/presentation/screens/professional_info_screen/professional_info_binding.dart';
 import 'package:technicianapp/presentation/screens/professional_info_screen/professional_info_screen.dart';
+import 'package:technicianapp/presentation/screens/schedule_job_screen/job_detail_controller.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/navigation_controller.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_binding.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_screen.dart';
@@ -357,7 +358,8 @@ class AppPages {
     ),
     GetPage(
       name: AppRoutes.scheduleJobDetailScreen,
-      page: () =>  ScheduleJobDetailScreen(),
+      page: () => ScheduleJobDetailScreen(),
+      binding: BindingsBuilder(() => Get.put(ScheduleJobDetailController())),
       transition: Transition.rightToLeftWithFade,
     ),
     GetPage(

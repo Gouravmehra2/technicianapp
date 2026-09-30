@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -26,11 +28,13 @@ class OnboardingScreen extends StatelessWidget {
     // Card height scales with screen — clamp between 260 and 340
     final cardHeight = (screenH * 0.36).clamp(260.0, 340.0);
 
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+    );
     return Scaffold(
       backgroundColor: _bgColor,
       extendBodyBehindAppBar: true,
@@ -47,10 +51,7 @@ class OnboardingScreen extends StatelessWidget {
               itemCount: controller.onboardingStepList.length,
               itemBuilder: (_, index) {
                 final data = controller.onboardingStepList[index];
-                return _SlidePage(
-                  data: data,
-                  cardHeight: cardHeight,
-                );
+                return _SlidePage(data: data, cardHeight: cardHeight);
               },
             ),
 
@@ -82,7 +83,7 @@ class OnboardingScreen extends StatelessWidget {
                 currentIndex: currentIndex,
                 total: controller.onboardingStepList.length,
                 isLast: isLast,
-                bottomPad: bottomPad,
+                bottomPad: Platform.isAndroid ? 10.0 + bottomPad : bottomPad,
                 cardHeight: cardHeight,
                 onSkip: () => CommonBottomSheet.show(child: LoginBottomSheet()),
                 onNext: controller.nextPage,
@@ -109,7 +110,7 @@ class _SlidePage extends StatelessWidget {
       children: [
         // Image stretches from very top (behind status bar) to above the card
         Positioned(
-          top: Get.height*0.05,
+          top: Get.height * 0.05,
           left: 0,
           right: 0,
           bottom: cardHeight,
@@ -230,14 +231,19 @@ class _BottomCard extends StatelessWidget {
                 GestureDetector(
                   onTap: onNext,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColor.brownAccentPrimary,
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: Text(
                       'onboarding_next'.tr,
-                      style: AppTextStyle.buttonLarge.copyWith(color: Colors.white),
+                      style: AppTextStyle.buttonLarge.copyWith(
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -249,25 +255,25 @@ class _BottomCard extends StatelessWidget {
   }
 
   String _title1(int i) => [
-        'onboarding_slide1_title',
-        'onboarding_slide2_title',
-        'onboarding_slide3_title',
-        'onboarding_slide4_title',
-      ][i].tr;
+    'onboarding_slide1_title',
+    'onboarding_slide2_title',
+    'onboarding_slide3_title',
+    'onboarding_slide4_title',
+  ][i].tr;
 
   String _title2(int i) => [
-        'onboarding_slide1_title2',
-        'onboarding_slide2_title2',
-        'onboarding_slide3_title2',
-        'onboarding_slide4_title2',
-      ][i].tr;
+    'onboarding_slide1_title2',
+    'onboarding_slide2_title2',
+    'onboarding_slide3_title2',
+    'onboarding_slide4_title2',
+  ][i].tr;
 
   String _desc(int i) => [
-        'onboarding_slide1_desc',
-        'onboarding_slide2_desc',
-        'onboarding_slide3_desc',
-        'onboarding_slide4_desc',
-      ][i].tr;
+    'onboarding_slide1_desc',
+    'onboarding_slide2_desc',
+    'onboarding_slide3_desc',
+    'onboarding_slide4_desc',
+  ][i].tr;
 }
 
 // ── Two-tone title ────────────────────────────────────────────────────────────

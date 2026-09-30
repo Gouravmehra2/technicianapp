@@ -1,12 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
-import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/firebase_options.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Background message handler — MUST be a top-level function (not a closure or
@@ -23,9 +25,63 @@ Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
     'data=${message.data}',
   );
 
+  await _showBackgroundNotification(message);
+
   // Route the message to the service for any background processing
   // (e.g. saving to local DB, badge count, etc.)
   await FirebaseService._handleBackgroundMessage(message);
+}
+
+const _notificationChannel = AndroidNotificationChannel(
+  'technician_notifications',
+  'Technician notifications',
+  description: 'Notifications for jobs, messages, and account activity.',
+  importance: Importance.high,
+);
+
+Future<void> _showBackgroundNotification(RemoteMessage message) async {
+  if (message.notification != null) return;
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  const settings = InitializationSettings(
+    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    iOS: DarwinInitializationSettings(),
+  );
+  await plugin.initialize(settings: settings);
+  await plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(_notificationChannel);
+
+  final title =
+      message.notification?.title ?? message.data['title']?.toString();
+  final body =
+      message.notification?.body ??
+      message.data['body']?.toString() ??
+      message.data['message']?.toString();
+  if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+    return;
+  }
+
+  await plugin.show(
+    id: message.hashCode,
+    title: title ?? 'Notification',
+    body: body ?? '',
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'technician_notifications',
+        'Technician notifications',
+        channelDescription:
+            'Notifications for jobs, messages, and account activity.',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: DarwinNotificationDetails(),
+    ),
+    payload: jsonEncode(message.data),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +102,10 @@ class FirebaseService extends GetxService {
 
   // Lazy — must NOT be accessed before Firebase.initializeApp() completes.
   late final FirebaseMessaging _messaging;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  bool _localNotificationsInitialized = false;
+  bool _initialized = false;
 
   /// Name of the currently active chat screen route.
   /// Set this whenever a chat screen opens so notifications from that
@@ -71,10 +131,8 @@ class FirebaseService extends GetxService {
     // 2. Register background handler (Android / iOS)
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
 
-    // 3. Request notification permission
-    await _requestPermission();
+    await _initializeLocalNotifications();
 
-    // 4. Retrieve device token
     await _fetchToken();
 
     // 5. Listen for token refreshes (e.g. after app reinstall / token rotation)
@@ -87,14 +145,34 @@ class FirebaseService extends GetxService {
     // 7. iOS foreground notification presentation
     if (Platform.isIOS) {
       await _messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
+        alert: false,
+        badge: false,
+        sound: false,
       );
     }
 
     debugPrint('[FirebaseService] Initialised. token=${fcmToken.value}');
+    _initialized = true;
     return this;
+  }
+
+  Future<void> _initializeLocalNotifications() async {
+    if (_localNotificationsInitialized) return;
+
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+    await _localNotifications.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: _onLocalNotificationTapped,
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(_notificationChannel);
+    _localNotificationsInitialized = true;
   }
 
   // ── Permission ────────────────────────────────────────────────────────────
@@ -103,18 +181,32 @@ class FirebaseService extends GetxService {
   ///
   /// On Android 13+ this shows the system permission dialog.
   /// On iOS this shows the native notification permission prompt.
-  Future<void> _requestPermission() async {
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false, // true = quiet delivery on iOS, no prompt
-      sound: true,
-    );
+  Future<AuthorizationStatus> requestNotificationPermission() async {
+    if (!_initialized) return AuthorizationStatus.notDetermined;
+    var settings = await _messaging.getNotificationSettings();
+    if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+      settings = await _messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+    }
 
-    final granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+    if (Platform.isAndroid &&
+        settings.authorizationStatus != AuthorizationStatus.denied) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
+    }
+
+    final granted =
+        settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
 
     notificationsGranted.value = granted;
@@ -122,6 +214,8 @@ class FirebaseService extends GetxService {
     debugPrint(
       '[FirebaseService] Permission status: ${settings.authorizationStatus.name}',
     );
+    if (granted && fcmToken.value == null) await _fetchToken();
+    return settings.authorizationStatus;
   }
 
   // ── Token management ──────────────────────────────────────────────────────
@@ -180,29 +274,6 @@ class FirebaseService extends GetxService {
   Future<void> _onTokenRefreshed(String newToken) async {
     debugPrint('[FirebaseService] Token refreshed: $newToken');
     fcmToken.value = newToken;
-
-    // Push the fresh token to the server if the user is already logged in.
-    await _pushTokenToServer(newToken);
-  }
-
-  /// A callback that is invoked whenever the token changes after initial load.
-  /// Set this from outside (e.g. LoginController / SplashController) to push
-  /// the token to your backend without creating a circular dependency.
-  ///
-  /// ```dart
-  /// FirebaseService.to.onTokenUpdated = (token) async {
-  ///   await _apiRepo.updateFcmTokenApi(token: token, platform: Platform.isIOS ? 'ios' : 'android');
-  /// };
-  /// ```
-  Future<void> Function(String token)? onTokenUpdated;
-
-  /// Send the token to the backend via the [onTokenUpdated] callback.
-  Future<void> _pushTokenToServer(String token) async {
-    try {
-      await onTokenUpdated?.call(token);
-    } catch (e) {
-      debugPrint('[FirebaseService] Token push error: $e');
-    }
   }
 
   // ── Foreground notifications ──────────────────────────────────────────────
@@ -239,11 +310,34 @@ class FirebaseService extends GetxService {
       return;
     }
 
-    // Show an in-app snackbar / banner for foreground messages.
-    _showInAppBanner(
+    _showLocalNotification(
       title: notification.title ?? '',
       body: notification.body ?? '',
       data: message.data,
+    );
+  }
+
+  /// Handle the equivalent notification delivered over the authenticated
+  /// Socket.IO connection while the app is open.
+  void handleSocketNotification(dynamic payload) {
+    if (payload is! Map) return;
+    final notification = payload['notification'];
+    if (notification is! Map) return;
+
+    final title =
+        notification['title']?.toString() ?? payload['title']?.toString() ?? '';
+    final body =
+        notification['message']?.toString() ??
+        notification['body']?.toString() ??
+        payload['body']?.toString() ??
+        payload['message']?.toString() ??
+        '';
+    _showLocalNotification(
+      title: title,
+      body: body,
+      data: Map<String, dynamic>.from(
+        (notification['data'] is Map ? notification['data'] : payload) as Map,
+      ),
     );
   }
 
@@ -307,6 +401,20 @@ class FirebaseService extends GetxService {
     }
   }
 
+  void _onLocalNotificationTapped(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final data = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+      final targetRoute = _routeForType(data['type']?.toString(), data);
+      if (targetRoute != null) Get.toNamed(targetRoute, arguments: data);
+    } catch (error) {
+      debugPrint(
+        '[FirebaseService] Invalid local notification payload: $error',
+      );
+    }
+  }
+
   /// Map notification type → app route.
   ///
   /// Extend this switch with any new notification types your backend sends.
@@ -318,10 +426,19 @@ class FirebaseService extends GetxService {
         // Backend sends the target route directly in the payload.
         return data['route']?.toString() ?? AppRoutes.chatSupportScreen;
       case 'job_request':
+      case 'new_job':
+      case 'job_invitation':
+      case 'technician_job_request':
+      case 'technician_counter_offer':
+      case 'admin_counter_offer':
+      case 'job_assigned':
+      case 'job_rescheduled':
+      case 'technician_request_response':
         return AppRoutes.jobDetailScreen;
       case 'job_accepted':
         return AppRoutes.scheduleJobScreen;
       case 'payment':
+      case 'wallet_payment':
         return AppRoutes.walletScreen;
       case 'document_verified':
         return AppRoutes.profileScreen;
@@ -339,23 +456,32 @@ class FirebaseService extends GetxService {
     // • Update badge count (using flutter_app_badger or similar)
     // • Write to local storage / Hive
     // Avoid UI operations — no widget context available in background isolates.
-    debugPrint(
-      '[FCM-BG] Processing background message: ${message.messageId}',
-    );
+    debugPrint('[FCM-BG] Processing background message: ${message.messageId}');
   }
 
-  // ── In-app banner ─────────────────────────────────────────────────────────
-
-  void _showInAppBanner({
+  Future<void> _showLocalNotification({
     required String title,
     required String body,
     required Map<String, dynamic> data,
   }) {
-    if (title.isEmpty && body.isEmpty) return;
-
-    AppSnackbar.info(
-      body.isNotEmpty ? body : title,
+    if (title.isEmpty && body.isEmpty) return Future.value();
+    return _localNotifications.show(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
       title: title.isNotEmpty ? title : 'Notification',
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'technician_notifications',
+          'Technician notifications',
+          channelDescription:
+              'Notifications for jobs, messages, and account activity.',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      payload: jsonEncode(data),
     );
   }
 
@@ -400,8 +526,15 @@ class FirebaseService extends GetxService {
     final settings = await _messaging.getNotificationSettings();
     notificationsGranted.value =
         settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
+        settings.authorizationStatus == AuthorizationStatus.provisional;
     return settings.authorizationStatus;
+  }
+
+  Future<void> openNotificationSettings() async {
+    final launched = await launchUrl(Uri.parse('app-settings:'));
+    if (!launched) {
+      debugPrint('[FirebaseService] Unable to open notification settings.');
+    }
   }
 
   /// Force-refresh the FCM token and return the new value.

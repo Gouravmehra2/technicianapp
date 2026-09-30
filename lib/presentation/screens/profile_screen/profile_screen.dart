@@ -37,7 +37,9 @@ class ProfileScreen extends GetView<ProfileController> {
             const SizedBox(height: 12),
             Text(
               'Version 1.0.0',
-              style: AppTextStyle.bodySmallRegular.copyWith(color: AppColor.coolGrayText),
+              style: AppTextStyle.bodySmallRegular.copyWith(
+                color: AppColor.coolGrayText,
+              ),
             ),
             const SizedBox(height: 32),
           ],
@@ -95,7 +97,23 @@ class ProfileScreen extends GetView<ProfileController> {
                     child: ClipOval(
                       child: file != null
                           ? Image.file(file, fit: BoxFit.cover)
-                          : Image.asset(AppAssets.onboardingImage2, fit: BoxFit.cover),
+                          : Obx(
+                              () => controller.profileImageUrl.value.isEmpty
+                                  ? Image.asset(
+                                      AppAssets.onboardingImage2,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.network(
+                                      controller.profileImageUrl.value,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Image.asset(
+                                                AppAssets.onboardingImage2,
+                                                fit: BoxFit.cover,
+                                              ),
+                                    ),
+                            ),
                     ),
                   );
                 }),
@@ -111,7 +129,11 @@ class ProfileScreen extends GetView<ProfileController> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: const Icon(Icons.edit, size: 13, color: Colors.white),
+                    child: const Icon(
+                      Icons.edit,
+                      size: 13,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -135,16 +157,11 @@ class ProfileScreen extends GetView<ProfileController> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  controller.userName.value,
+                  controller.userName.value.capitalizeFirst ?? '',
                   style: AppTextStyle.titleLargeBold.copyWith(
                     color: AppColor.blackShade1,
                     fontSize: 20,
                   ),
-                ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: controller.onEditName,
-                  child: const Icon(Icons.edit, size: 16, color: AppColor.brownAccentPrimary),
                 ),
               ],
             ),
@@ -157,40 +174,59 @@ class ProfileScreen extends GetView<ProfileController> {
               const Icon(Icons.star, color: Color(0xFFFFB800), size: 16),
               const SizedBox(width: 4),
               Text(
-                '4.9',
-                style: AppTextStyle.bodySmallMedium.copyWith(color: AppColor.blackShade1),
+                '-',
+                style: AppTextStyle.bodySmallMedium.copyWith(
+                  color: AppColor.blackShade1,
+                ),
               ),
               const SizedBox(width: 4),
               Text(
-                '(254 Reviews)',
-                style: AppTextStyle.bodySmallRegular.copyWith(color: AppColor.coolGrayText),
+                'Reviews unavailable',
+                style: AppTextStyle.bodySmallRegular.copyWith(
+                  color: AppColor.coolGrayText,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            'Certified Technician Level 3 Expert',
-            style: AppTextStyle.bodySmallRegular.copyWith(color: AppColor.coolGrayText),
+          Obx(
+            () => Text(
+              controller.experienceLevel.value,
+              style: AppTextStyle.bodySmallRegular.copyWith(
+                color: AppColor.coolGrayText,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Obx(
+            () => Text(
+              controller.memberSince.value,
+              style: AppTextStyle.bodySmallRegular.copyWith(
+                color: AppColor.coolGrayText,
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           // Verified + Background Checked badges
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _Badge(
-                icon: Icons.verified_outlined,
-                label: 'VERIFIED',
-                color: AppColor.green2Color,
-                bgColor: AppColor.lightGreen1Color,
-              ),
-              const SizedBox(width: 8),
-              _Badge(
-                icon: Icons.shield_outlined,
-                label: 'BACKGROUND CHECKED',
-                color: AppColor.brownAccentPrimary,
-                bgColor: const Color(0xFFFFF3E0),
-              ),
-            ],
+          Obx(
+            () => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _Badge(
+                  icon: Icons.verified_outlined,
+                  label: controller.verificationStatus.value.toUpperCase(),
+                  color: AppColor.green2Color,
+                  bgColor: AppColor.lightGreen1Color,
+                ),
+                const SizedBox(width: 8),
+                _Badge(
+                  icon: Icons.shield_outlined,
+                  label: 'PROFILE COMPLETE',
+                  color: AppColor.brownAccentPrimary,
+                  bgColor: const Color(0xFFFFF3E0),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -216,23 +252,24 @@ class ProfileScreen extends GetView<ProfileController> {
             children: [
               Text(
                 'Performance Overview',
-                style: AppTextStyle.titleSmallSemiBold.copyWith(color: AppColor.blackShade1),
+                style: AppTextStyle.titleSmallSemiBold.copyWith(
+                  color: AppColor.blackShade1,
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColor.lightGreyColor),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Row(
-                  children: [
-                    Text(
-                      'This Month',
-                      style: AppTextStyle.labelSmallMedium.copyWith(color: AppColor.coolGrayText),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.keyboard_arrow_down, size: 14, color: AppColor.coolGrayText),
-                  ],
+                child: Text(
+                  'All Time',
+                  style: AppTextStyle.labelSmallMedium.copyWith(
+                    color: AppColor.coolGrayText,
+                  ),
                 ),
               ),
             ],
@@ -241,17 +278,35 @@ class ProfileScreen extends GetView<ProfileController> {
           // Stats grid
           Row(
             children: [
-              Expanded(child: _StatBox(label: 'Jobs Completed', value: '28')),
+              Expanded(
+                child: Obx(
+                  () => _StatBox(
+                    label: 'Jobs Completed',
+                    value: controller.jobsCompleted.value,
+                  ),
+                ),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _StatBox(label: 'Response Rate', value: '98%')),
+              Expanded(
+                child: _StatBox(label: 'Response Rate', value: '-'),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _StatBox(label: 'Acceptance Rate', value: '95%')),
+              Expanded(
+                child: _StatBox(label: 'Acceptance Rate', value: '-'),
+              ),
               const SizedBox(width: 8),
-              Expanded(child: _StatBox(label: 'Earnings', value: '\$24,680')),
+              Expanded(
+                child: Obx(
+                  () => _StatBox(
+                    label: 'Earnings',
+                    value: controller.earnings.value,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -281,7 +336,7 @@ class ProfileScreen extends GetView<ProfileController> {
           _MenuTile(
             icon: Icons.language_outlined,
             label: 'Language',
-            trailing:  _LanguageToggle(controller: controller),
+            trailing: _LanguageToggle(controller: controller),
             onTap: () {},
           ),
           _buildDivider(),
@@ -405,7 +460,9 @@ class _StatBox extends StatelessWidget {
         children: [
           Text(
             label,
-            style: AppTextStyle.labelSmallRegular.copyWith(color: AppColor.coolGrayText),
+            style: AppTextStyle.labelSmallRegular.copyWith(
+              color: AppColor.coolGrayText,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -425,6 +482,7 @@ class _StatBox extends StatelessWidget {
 
 class _LanguageToggle extends StatelessWidget {
   final ProfileController controller;
+
   const _LanguageToggle({required this.controller});
 
   @override
@@ -445,7 +503,9 @@ class _LanguageToggle extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: selected ? AppColor.brownAccentPrimary : Colors.transparent,
+                color: selected
+                    ? AppColor.brownAccentPrimary
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -513,7 +573,11 @@ class _MenuTile extends StatelessWidget {
               ),
             ),
             trailing ??
-                const Icon(Icons.chevron_right, color: AppColor.coolGrayText, size: 20),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColor.coolGrayText,
+                  size: 20,
+                ),
           ],
         ),
       ),
@@ -553,17 +617,22 @@ class _ReferEarnSection extends GetView<ProfileController> {
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => Clipboard.setData(
-                    ClipboardData(text: controller.referralCode.value),
-                  ).then(
-                    (_) => Get.snackbar(
-                      'Copied',
-                      'Referral code copied to clipboard',
-                      snackPosition: SnackPosition.TOP,
-                      duration: const Duration(seconds: 2),
-                    ),
+                  onTap: () =>
+                      Clipboard.setData(
+                        ClipboardData(text: controller.referralCode.value),
+                      ).then(
+                        (_) => Get.snackbar(
+                          'Copied',
+                          'Referral code copied to clipboard',
+                          snackPosition: SnackPosition.TOP,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      ),
+                  child: const Icon(
+                    Icons.copy,
+                    size: 16,
+                    color: AppColor.brownAccentPrimary,
                   ),
-                  child: const Icon(Icons.copy, size: 16, color: AppColor.brownAccentPrimary),
                 ),
               ],
             ),
@@ -596,11 +665,17 @@ class _LogoutButton extends GetView<ProfileController> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+              const Icon(
+                Icons.logout_rounded,
+                color: Colors.redAccent,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Logout from 1APP-Technician',
-                style: AppTextStyle.buttonMedium.copyWith(color: Colors.redAccent),
+                style: AppTextStyle.buttonMedium.copyWith(
+                  color: Colors.redAccent,
+                ),
               ),
             ],
           ),

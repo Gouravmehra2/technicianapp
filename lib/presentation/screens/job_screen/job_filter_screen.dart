@@ -33,12 +33,14 @@ class JobFilterScreen extends GetView<JobFilterController> {
         ),
         actions: [
           GestureDetector(
-            onTap: controller.resetFilters,
+            onTap: controller.clearFiltersAndBack,
             child: Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Text(
                 'Reset',
-                style: AppTextStyle.titleSmallSemiBold.copyWith(color: AppColor.brownAccentPrimary),
+                style: AppTextStyle.titleSmallSemiBold.copyWith(
+                  color: AppColor.brownAccentPrimary,
+                ),
               ),
             ),
           ),
@@ -52,10 +54,57 @@ class JobFilterScreen extends GetView<JobFilterController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _SectionHeader(
+                    title: 'Job Feed',
+                    actionLabel: '',
+                    onAction: () {},
+                  ),
+                  const SizedBox(height: 8),
+                  Obx(
+                    () => Column(
+                      children: [
+                        _RadioRow(
+                          label: 'All Jobs',
+                          selected: !controller.recommendedSelected.value,
+                          onTap: () =>
+                              controller.recommendedSelected.value = false,
+                        ),
+                        _RadioRow(
+                          label: 'Recommended Jobs',
+                          selected: controller.recommendedSelected.value,
+                          onTap: () =>
+                              controller.recommendedSelected.value = true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _Divider(),
+
                   // ── Service Category ────────────────────────────────────
-                  _SectionHeader(title: 'Service Category', actionLabel: 'See All', onAction: () {}),
+                  _SectionHeader(
+                    title: 'Service Type',
+                    actionLabel: 'Clear',
+                    onAction: () {
+                      controller.selectedServiceTypeIds.clear();
+                      controller.selectedServiceTypeIds.refresh();
+                    },
+                  ),
                   const SizedBox(height: 12),
-                  _ServiceCategoryRow(controller: controller),
+                  Obx(
+                    () => controller.jobController.isServiceTypesLoading.value
+                        ? const Center(child: CircularProgressIndicator())
+                        : Column(
+                            children: controller.serviceTypes.map((type) {
+                              return _CheckboxRow(
+                                label: type.name,
+                                checked: controller.selectedServiceTypeIds
+                                    .contains(type.id),
+                                onTap: () =>
+                                    controller.toggleServiceType(type.id),
+                              );
+                            }).toList(),
+                          ),
+                  ),
                   _Divider(),
 
                   // ── Distance ────────────────────────────────────────────
@@ -63,37 +112,64 @@ class JobFilterScreen extends GetView<JobFilterController> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Distance', style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1)),
-                      Obx(() => Text(
-                        'Within ${controller.distanceKm.value.toInt()} km',
-                        style: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.coolGrayText),
-                      )),
+                      Text(
+                        'Distance',
+                        style: AppTextStyle.titleLargeBold.copyWith(
+                          color: AppColor.blackShade1,
+                        ),
+                      ),
+                      Obx(
+                        () => Text(
+                          controller.distanceMiles.value == 0
+                              ? 'Any distance'
+                              : 'Within ${controller.distanceMiles.value.toInt()} miles',
+                          style: AppTextStyle.bodyMediumRegular.copyWith(
+                            color: AppColor.coolGrayText,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Obx(() => SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: AppColor.brownAccentPrimary,
-                      inactiveTrackColor: AppColor.lightGreyColor,
-                      thumbColor: AppColor.brownAccentPrimary,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
-                      trackHeight: 4,
+                  Obx(
+                    () => SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppColor.brownAccentPrimary,
+                        inactiveTrackColor: AppColor.lightGreyColor,
+                        thumbColor: AppColor.brownAccentPrimary,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 10,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 18,
+                        ),
+                        trackHeight: 4,
+                      ),
+                      child: Slider(
+                        value: controller.distanceMiles.value,
+                        min: 0,
+                        max: 50,
+                        onChanged: (v) => controller.distanceMiles.value = v,
+                      ),
                     ),
-                    child: Slider(
-                      value: controller.distanceKm.value,
-                      min: 0,
-                      max: 25,
-                      onChanged: (v) => controller.distanceKm.value = v,
-                    ),
-                  )),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('0 km', style: AppTextStyle.bodySmallRegular.copyWith(color: AppColor.coolGrayText)),
-                        Text('25 km', style: AppTextStyle.bodySmallRegular.copyWith(color: AppColor.coolGrayText)),
+                        Text(
+                          'Any',
+                          style: AppTextStyle.bodySmallRegular.copyWith(
+                            color: AppColor.coolGrayText,
+                          ),
+                        ),
+                        Text(
+                          '50 miles',
+                          style: AppTextStyle.bodySmallRegular.copyWith(
+                            color: AppColor.coolGrayText,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -101,41 +177,19 @@ class JobFilterScreen extends GetView<JobFilterController> {
 
                   // ── Minimum Earning ─────────────────────────────────────
                   const SizedBox(height: 16),
-                  Text('Minimum Earning', style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1)),
+                  Text(
+                    'Minimum Earning',
+                    style: AppTextStyle.titleLargeBold.copyWith(
+                      color: AppColor.blackShade1,
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                   _EarningChips(controller: controller),
+                  _EarningChips(controller: controller),
                   _Divider(),
 
                   // ── Job Type ────────────────────────────────────────────
                   const SizedBox(height: 16),
-                  Text('Job Type', style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1)),
-                  const SizedBox(height: 10),
-                  Obx(() => Column(
-                    children: controller.jobTypes.map((type) {
-                      final checked = controller.selectedJobTypes.contains(type);
-                      return _CheckboxRow(
-                        label: type,
-                        checked: checked,
-                        onTap: () => controller.toggleJobType(type),
-                      );
-                    }).toList(),
-                  )),
                   _Divider(),
-
-                  // ── Date ────────────────────────────────────────────────
-                  const SizedBox(height: 16),
-                  Text('Date', style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1)),
-                  const SizedBox(height: 10),
-                  Obx(() => Column(
-                    children: controller.dateOptions.map((opt) {
-                      final selected = controller.selectedDate.value == opt;
-                      return _RadioRow(
-                        label: opt,
-                        selected: selected,
-                        onTap: () => controller.selectDate(opt),
-                      );
-                    }).toList(),
-                  )),
                   const SizedBox(height: 8),
                 ],
               ),
@@ -144,27 +198,41 @@ class JobFilterScreen extends GetView<JobFilterController> {
           // ── Apply Button ─────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: GestureDetector(
-              onTap: controller.applyFilters,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: AppColor.brownAccentPrimary,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.tune, color: Colors.white, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Apply Filters',
-                      style: AppTextStyle.buttonLarge.copyWith(color: Colors.white),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: controller.clearFiltersAndBack,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      side: const BorderSide(
+                        color: AppColor.brownAccentPrimary,
+                      ),
                     ),
-                  ],
+                    child: const Text('Clear'),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: controller.applyFilters,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColor.brownAccentPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text(
+                      'Apply',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -179,19 +247,30 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final String actionLabel;
   final VoidCallback onAction;
-  const _SectionHeader({required this.title, required this.actionLabel, required this.onAction});
+  const _SectionHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: AppTextStyle.titleLargeBold.copyWith(color: AppColor.blackShade1)),
+        Text(
+          title,
+          style: AppTextStyle.titleLargeBold.copyWith(
+            color: AppColor.blackShade1,
+          ),
+        ),
         GestureDetector(
           onTap: onAction,
           child: Text(
             actionLabel,
-            style: AppTextStyle.titleSmallSemiBold.copyWith(color: AppColor.brownAccentPrimary),
+            style: AppTextStyle.titleSmallSemiBold.copyWith(
+              color: AppColor.brownAccentPrimary,
+            ),
           ),
         ),
       ],
@@ -222,16 +301,22 @@ class _ServiceCategoryRow extends StatelessWidget {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: selected ? const Color(0xFFFFF3E0) : const Color(0xFFF4F4F4),
+                      color: selected
+                          ? const Color(0xFFFFF3E0)
+                          : const Color(0xFFF4F4F4),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: selected ? AppColor.brownAccentPrimary : Colors.transparent,
+                        color: selected
+                            ? AppColor.brownAccentPrimary
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
                     child: Icon(
                       cat.icon,
-                      color: selected ? AppColor.brownAccentPrimary : AppColor.coolGrayText,
+                      color: selected
+                          ? AppColor.brownAccentPrimary
+                          : AppColor.coolGrayText,
                       size: 24,
                     ),
                   ),
@@ -239,7 +324,9 @@ class _ServiceCategoryRow extends StatelessWidget {
                   Text(
                     cat.label,
                     style: AppTextStyle.labelSmallMedium.copyWith(
-                      color: selected ? AppColor.brownAccentPrimary : AppColor.coolGrayText,
+                      color: selected
+                          ? AppColor.brownAccentPrimary
+                          : AppColor.coolGrayText,
                     ),
                   ),
                 ],
@@ -272,7 +359,9 @@ class _EarningChips extends StatelessWidget {
               color: selected ? AppColor.brownAccentPrimary : Colors.white,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: selected ? AppColor.brownAccentPrimary : AppColor.lightGreyColor,
+                color: selected
+                    ? AppColor.brownAccentPrimary
+                    : AppColor.lightGreyColor,
               ),
             ),
             child: Text(
@@ -295,7 +384,11 @@ class _CheckboxRow extends StatelessWidget {
   final String label;
   final bool checked;
   final VoidCallback onTap;
-  const _CheckboxRow({required this.label, required this.checked, required this.onTap});
+  const _CheckboxRow({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +405,9 @@ class _CheckboxRow extends StatelessWidget {
                 color: checked ? AppColor.brownAccentPrimary : Colors.white,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: checked ? AppColor.brownAccentPrimary : AppColor.lightGreyColor,
+                  color: checked
+                      ? AppColor.brownAccentPrimary
+                      : AppColor.lightGreyColor,
                   width: 1.5,
                 ),
               ),
@@ -321,7 +416,12 @@ class _CheckboxRow extends StatelessWidget {
                   : null,
             ),
             const SizedBox(width: 12),
-            Text(label, style: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.blackShade1)),
+            Text(
+              label,
+              style: AppTextStyle.bodyMediumRegular.copyWith(
+                color: AppColor.blackShade1,
+              ),
+            ),
           ],
         ),
       ),
@@ -335,7 +435,11 @@ class _RadioRow extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _RadioRow({required this.label, required this.selected, required this.onTap});
+  const _RadioRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +456,9 @@ class _RadioRow extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: selected ? AppColor.brownAccentPrimary : Colors.white,
                 border: Border.all(
-                  color: selected ? AppColor.brownAccentPrimary : AppColor.lightGreyColor,
+                  color: selected
+                      ? AppColor.brownAccentPrimary
+                      : AppColor.lightGreyColor,
                   width: 1.5,
                 ),
               ),
@@ -366,7 +472,12 @@ class _RadioRow extends StatelessWidget {
                   : null,
             ),
             const SizedBox(width: 12),
-            Text(label, style: AppTextStyle.bodyMediumRegular.copyWith(color: AppColor.blackShade1)),
+            Text(
+              label,
+              style: AppTextStyle.bodyMediumRegular.copyWith(
+                color: AppColor.blackShade1,
+              ),
+            ),
           ],
         ),
       ),

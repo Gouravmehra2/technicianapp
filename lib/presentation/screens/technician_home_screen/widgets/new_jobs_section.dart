@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
+import 'package:technicianapp/constant/common_widgets/empty_api_state.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 import '../technician_home_controller.dart';
 
@@ -21,7 +22,7 @@ class NewJobsSection extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'New Jobs',
+                'New Job',
                 style: AppTextStyle.titleLargeBold.copyWith(
                   color: AppColor.blackShade1,
                 ),
@@ -39,6 +40,49 @@ class NewJobsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Obx(
+                  () => _FilterButton(
+                    icon: Icons.star_border_rounded,
+                    label: controller.recommendedSelected.value
+                        ? 'Recommended Jobs'
+                        : 'All Jobs',
+                    selected: controller.recommendedSelected.value,
+                    onTap: () => _showRecommendationFilter(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Obx(
+                  () => _FilterButton(
+                    icon: Icons.location_on_outlined,
+                    label: controller.selectedDistanceMiles.value == null
+                        ? 'Any distance'
+                        : '${controller.selectedDistanceMiles.value} miles',
+                    subtitle: 'Distance',
+                    onTap: () => _showDistanceFilter(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Obx(
+                  () => _FilterButton(
+                    icon: Icons.business_center_outlined,
+                    label: controller.selectedServiceTypeLabel,
+                    onTap: () => _showServiceTypeFilter(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -46,16 +90,10 @@ class NewJobsSection extends StatelessWidget {
             if (controller.newJobs.isEmpty) {
               return SizedBox(
                 width: MediaQuery.of(context).size.width - 32,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      'No new jobs available right now.',
-                      style: AppTextStyle.bodySmallMedium.copyWith(
-                        color: AppColor.coolGrayText,
-                      ),
-                    ),
-                  ),
+                child: EmptyApiState(
+                  compact: true,
+                  title: 'No New Jobs Found',
+                  onRefresh: controller.hitJobsApi,
                 ),
               );
             }
@@ -77,6 +115,274 @@ class NewJobsSection extends StatelessWidget {
           }),
         ),
       ],
+    );
+  }
+
+  void _showDistanceFilter(BuildContext context) {
+    const distances = [5, 10, 20, 30, 50];
+    int? draftDistance = controller.selectedDistanceMiles.value;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (_) => SafeArea(
+        child: StatefulBuilder(
+          builder: (context, setState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('Distance'),
+                subtitle: Text('Choose a radius for recommended jobs'),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.refresh,
+                  color: AppColor.brownAccentPrimary,
+                ),
+                title: const Text('Any distance'),
+                trailing: draftDistance == null
+                    ? const Icon(
+                        Icons.check,
+                        color: AppColor.brownAccentPrimary,
+                      )
+                    : null,
+                onTap: () => setState(() => draftDistance = null),
+              ),
+              for (final distance in distances)
+                RadioListTile<int>(
+                  value: distance,
+                  groupValue: draftDistance,
+                  activeColor: AppColor.brownAccentPrimary,
+                  title: Text('Within $distance miles'),
+                  onChanged: (value) => setState(() => draftDistance = value),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setState(() => draftDistance = null),
+                        child: const Text('Reset'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (draftDistance == null) {
+                            controller.resetDistanceMiles();
+                          } else {
+                            controller.setDistanceMiles(draftDistance!);
+                          }
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColor.brownAccentPrimary,
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRecommendationFilter(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      builder: (_) => SafeArea(
+        child: Obx(
+          () => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('Job feed'),
+                subtitle: Text('Choose which jobs to show'),
+              ),
+              RadioListTile<bool>(
+                value: false,
+                groupValue: controller.recommendedSelected.value,
+                title: const Text('All Jobs'),
+                activeColor: AppColor.brownAccentPrimary,
+                onChanged: (value) {
+                  if (value != null &&
+                      value != controller.recommendedSelected.value) {
+                    controller.toggleRecommended();
+                  }
+                  Navigator.pop(context);
+                },
+              ),
+              RadioListTile<bool>(
+                value: true,
+                groupValue: controller.recommendedSelected.value,
+                title: const Text('Recommended Jobs'),
+                activeColor: AppColor.brownAccentPrimary,
+                onChanged: (value) {
+                  if (value != null &&
+                      value != controller.recommendedSelected.value) {
+                    controller.toggleRecommended();
+                  }
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showServiceTypeFilter(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (_) => GetBuilder(
+        init: controller,
+        builder: (controller) {
+          return SafeArea(
+            child: Obx(
+              () => SizedBox(
+                height: MediaQuery.of(context).size.height * 0.65,
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: const Text('Job Types'),
+                      trailing: TextButton(
+                        onPressed: controller.clearServiceTypes,
+                        child: const Text('Clear'),
+                      ),
+                    ),
+                    Expanded(
+                      child: controller.isServiceTypesLoading.value
+                          ? const Center(child: CircularProgressIndicator())
+                          : ListView.builder(
+                              itemCount: controller.serviceTypes.length,
+                              itemBuilder: (_, index) {
+                                final type = controller.serviceTypes[index];
+                                return CheckboxListTile(
+                                  value: controller.selectedServiceTypeIds
+                                      .contains(type.id),
+                                  activeColor: AppColor.brownAccentPrimary,
+                                  title: Text(type.name),
+                                  onChanged: (_) =>
+                                      controller.toggleServiceType(type.id),
+                                );
+                              },
+                            ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            controller.applyJobTypeFilter();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColor.brownAccentPrimary,
+                          ),
+                          child: const Text(
+                            'Done',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FilterButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 58,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColor.brownAccentPrimary : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE3CBA7)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.white : AppColor.brownAccentPrimary,
+              size: 21,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: selected ? Colors.white70 : AppColor.darkGray,
+                      ),
+                    ),
+                  Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : AppColor.blackShade1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!selected)
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: AppColor.brownAccentPrimary,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -155,28 +461,6 @@ class _NewJobCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-
-          // ── Service type + pay type chips ───────────────────────
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              if ((job.serviceType?.name ?? '').isNotEmpty)
-                _HomeMetaChip(
-                  label: job.serviceType!.name!,
-                  bgColor: const Color(0xFFFFF3E0),
-                  textColor: AppColor.brownAccentPrimary,
-                  icon: Icons.build_outlined,
-                ),
-              _HomeMetaChip(
-                label: controller.jobController.payTypeLabel(job),
-                bgColor: const Color(0xFFE8F5E9),
-                textColor: const Color(0xFF2E7D32),
-                icon: Icons.payment_outlined,
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
 
           // ── Location & category ─────────────────────────────────
           InfoRow(
@@ -266,26 +550,6 @@ class _NewJobCard extends StatelessWidget {
           const Divider(height: 1, color: Color(0xFFF0E6D0)),
           const SizedBox(height: 12),
 
-          // ── Navigate button ─────────────────────────────────────
-          OutlinedButton.icon(
-            onPressed: () => controller.onNavigateJobTapped(job),
-            icon: const Icon(Icons.navigation_outlined, size: 16),
-            label: const Text('NAVIGATE'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColor.blackShade1,
-              side: const BorderSide(color: Color(0xFFDDDDDD)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              minimumSize: const Size(double.infinity, 42),
-              textStyle: AppTextStyle.labelSmallMedium.copyWith(
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // ── Action buttons ──────────────────────────────────────
           Obx(() {
             final isRequesting = controller.requestingJobIds.contains(
               job.sId ?? '',
@@ -293,35 +557,24 @@ class _NewJobCard extends StatelessWidget {
             return Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: isRequesting
+                  child: OutlinedButton(
+                    onPressed: isRequesting
                         ? null
                         : () => controller.onRequestJob(job),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColor.brownAccentPrimary),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColor.brownAccentPrimary,
+                      side: const BorderSide(
+                        color: AppColor.brownAccentPrimary,
+                      ),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: isRequesting
-                            ? const SizedBox(
-                                key: ValueKey('loading'),
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColor.brownAccentPrimary,
-                                ),
-                              )
-                            : Text(
-                                'Request job',
-                                key: const ValueKey('label'),
-                                style: AppTextStyle.buttonSmall.copyWith(
-                                  color: AppColor.brownAccentPrimary,
-                                ),
-                              ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: Text(
+                      'Request Job',
+                      style: AppTextStyle.buttonSmall.copyWith(
+                        color: AppColor.brownAccentPrimary,
                       ),
                     ),
                   ),
@@ -329,7 +582,9 @@ class _NewJobCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => controller.onCounterOffer(job),
+                    onPressed: isRequesting
+                        ? null
+                        : () => controller.onCounterOffer(job),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColor.brownAccentPrimary,
                       shape: RoundedRectangleBorder(
@@ -350,6 +605,24 @@ class _NewJobCard extends StatelessWidget {
             );
           }),
           const SizedBox(height: 8),
+          // ── Navigate button ─────────────────────────────────────
+          // OutlinedButton.icon(
+          //   onPressed: () => controller.onNavigateJobTapped(job),
+          //   icon: const Icon(Icons.navigation_outlined, size: 16),
+          //   label: const Text('NAVIGATE'),
+          //   style: OutlinedButton.styleFrom(
+          //     foregroundColor: AppColor.blackShade1,
+          //     side: const BorderSide(color: Color(0xFFDDDDDD)),
+          //     shape: RoundedRectangleBorder(
+          //       borderRadius: BorderRadius.circular(20),
+          //     ),
+          //     minimumSize: const Size(double.infinity, 42),
+          //     textStyle: AppTextStyle.labelSmallMedium.copyWith(
+          //       letterSpacing: 0.5,
+          //     ),
+          //   ),
+          // ),
+          // const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -363,7 +636,7 @@ class _NewJobCard extends StatelessWidget {
                 elevation: 0,
               ),
               child: Text(
-                'View Full Details',
+                'Click to view Details',
                 style: AppTextStyle.buttonSmall.copyWith(
                   color: Colors.white,
                   fontStyle: FontStyle.italic,
@@ -406,83 +679,6 @@ class InfoRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool accent;
-
-  const _Chip({required this.label, this.accent = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: accent
-            ? AppColor.brownAccentPrimary.withValues(alpha: 0.10)
-            : const Color(0xFFF5EDD8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accent
-              ? AppColor.brownAccentPrimary.withValues(alpha: 0.30)
-              : const Color(0xFFE8D5B0),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: accent ? AppColor.brownAccentPrimary : AppColor.blackShade1,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Home Meta Chip ───────────────────────────────────────────────────────────
-
-class _HomeMetaChip extends StatelessWidget {
-  final String label;
-  final Color bgColor;
-  final Color textColor;
-  final IconData icon;
-
-  const _HomeMetaChip({
-    required this.label,
-    required this.bgColor,
-    required this.textColor,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-              color: textColor,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

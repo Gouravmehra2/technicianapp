@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:technicianapp/core/services/location_sharing_service.dart';
+import 'package:technicianapp/core/services/socket_service.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -85,6 +87,9 @@ class AuthService extends GetxService {
   // ── Logout ──────────────────────────────────────────────────────────────────
 
   Future<void> clearSession() async {
+    if (Get.isRegistered<LocationSharingService>())
+      await LocationSharingService.to.stop();
+    SocketService.instance.close();
     // Delete the FCM token from Firebase so this device stops receiving
     // push notifications after logout. Do this before clearing auth state.
     try {

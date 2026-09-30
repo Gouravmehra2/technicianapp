@@ -14,8 +14,7 @@ class RequestStatusModel {
   factory RequestStatusModel.fromJson(Map<String, dynamic> json) {
     return RequestStatusModel(
       success: json['success'] == true,
-      data: RequestStatusData.fromJson(
-          json['data'] as Map<String, dynamic>),
+      data: RequestStatusData.fromJson(json['data'] as Map<String, dynamic>),
     );
   }
 }
@@ -40,7 +39,8 @@ class RequestStatusData {
   factory RequestStatusData.fromJson(Map<String, dynamic> json) {
     return RequestStatusData(
       request: RequestOverview.fromJson(
-          json['request'] as Map<String, dynamic>),
+        json['request'] as Map<String, dynamic>,
+      ),
       job: json['job'] != null
           ? JobSummary.fromJson(json['job'] as Map<String, dynamic>)
           : null,
@@ -48,9 +48,9 @@ class RequestStatusData {
           ? InvoiceModel.fromJson(json['invoice'] as Map<String, dynamic>)
           : null,
       charges: ChargesBreakdown.fromJson(
-          json['charges'] as Map<String, dynamic>),
-      summary: ChargesSummary.fromJson(
-          json['summary'] as Map<String, dynamic>),
+        json['charges'] as Map<String, dynamic>,
+      ),
+      summary: ChargesSummary.fromJson(json['summary'] as Map<String, dynamic>),
       nextAction: json['nextAction'] as String?,
     );
   }
@@ -70,6 +70,10 @@ class RequestOverview {
   final double? agreedAdditionalTotal;
   final double? agreedTotal;
   final String? createdAt;
+  final int? counterOffer;
+  final String? counterOfferFrom;
+  final bool adminApproved;
+  final String? pendingWith;
 
   const RequestOverview({
     required this.id,
@@ -81,6 +85,10 @@ class RequestOverview {
     this.agreedAdditionalTotal,
     this.agreedTotal,
     this.createdAt,
+    this.counterOffer,
+    this.counterOfferFrom,
+    this.adminApproved = false,
+    this.pendingWith,
   });
 
   factory RequestOverview.fromJson(Map<String, dynamic> json) {
@@ -94,6 +102,10 @@ class RequestOverview {
       agreedAdditionalTotal: _toDouble(json['agreedAdditionalTotal']),
       agreedTotal: _toDouble(json['agreedTotal']),
       createdAt: json['createdAt'] as String?,
+      counterOffer: _toInt(json['counterOffer']),
+      counterOfferFrom: json['counterOfferFrom'] as String?,
+      adminApproved: json['adminApproved'] == true,
+      pendingWith: json['pendingWith'] as String?,
     );
   }
 }
@@ -145,6 +157,9 @@ class ChargeItem {
   final String? submittedAt;
   final String? reviewedAt;
   final String? resolvedAt;
+  final String? pendingWith;
+  final double? technicianCounterAmount;
+  final List<CounterHistoryEntry> counterHistory;
 
   const ChargeItem({
     required this.id,
@@ -159,6 +174,9 @@ class ChargeItem {
     this.submittedAt,
     this.reviewedAt,
     this.resolvedAt,
+    this.pendingWith,
+    this.technicianCounterAmount,
+    this.counterHistory = const [],
   });
 
   factory ChargeItem.fromJson(Map<String, dynamic> json) {
@@ -175,6 +193,35 @@ class ChargeItem {
       submittedAt: json['submittedAt'] as String?,
       reviewedAt: json['reviewedAt'] as String?,
       resolvedAt: json['resolvedAt'] as String?,
+      pendingWith: json['pendingWith'] as String?,
+      technicianCounterAmount: _toDouble(json['technicianCounterAmount']),
+      counterHistory: (json['counterHistory'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(CounterHistoryEntry.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class CounterHistoryEntry {
+  final int round;
+  final String actor;
+  final String action;
+  final double amount;
+
+  const CounterHistoryEntry({
+    required this.round,
+    required this.actor,
+    required this.action,
+    required this.amount,
+  });
+
+  factory CounterHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return CounterHistoryEntry(
+      round: (json['round'] as num?)?.toInt() ?? 0,
+      actor: json['actor'] as String? ?? '',
+      action: json['action'] as String? ?? '',
+      amount: _toDouble(json['amount']) ?? 0,
     );
   }
 }
@@ -210,7 +257,9 @@ class ChargesBreakdown {
 
   static List<ChargeItem> _parseList(dynamic raw) {
     if (raw == null) return [];
-    return (raw as List).map((e) => ChargeItem.fromJson(e as Map<String, dynamic>)).toList();
+    return (raw as List)
+        .map((e) => ChargeItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }
 
@@ -320,4 +369,11 @@ double? _toDouble(dynamic v) {
   if (v is double) return v;
   if (v is int) return v.toDouble();
   return double.tryParse(v.toString());
+}
+
+int? _toInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
 }

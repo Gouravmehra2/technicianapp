@@ -5,13 +5,21 @@ import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/dio_exception_handler/dio_exception_handler.dart';
-import 'package:technicianapp/core/services/map_launch_helper.dart';
+import 'package:technicianapp/core/services/location_service.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dashboard_controller.dart';
+import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/service_type_model.dart';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-enum JobTabType { newJobs, activeJobs, completedJobs, requestedJob }
+enum JobTabType {
+  newJobs,
+  activeJobs,
+  completedJobs,
+  checkoutJobs,
+  requestedJob,
+}
 
 // ─── Controller ───────────────────────────────────────────────────────────────
 
@@ -19,13 +27,39 @@ class JobController extends GetxController {
   final api = Get.find<ApiRepo>();
 
   final selectedTab = JobTabType.newJobs.obs;
-  final searchQuery = ''.obs;
-  final searchController = TextEditingController();
+  final Map<JobTabType, RxString> searchQueries = {
+    for (final tab in JobTabType.values) tab: ''.obs,
+  };
+  final Map<JobTabType, TextEditingController> searchControllers = {
+    for (final tab in JobTabType.values) tab: TextEditingController(),
+  };
   final isLoading = false.obs;
+
+  final recommendedSelected = false.obs;
+  final selectedDistanceMiles = RxnInt();
+  final serviceTypes = <ServiceType>[].obs;
+  final selectedServiceTypeIds = <String>{}.obs;
+  final isServiceTypesLoading = false.obs;
+
+  String get selectedServiceTypeLabel {
+    final names = serviceTypes
+        .where((type) => selectedServiceTypeIds.contains(type.id))
+        .map((type) => type.name)
+        .toList();
+    if (names.isEmpty) return 'All Job Types';
+    if (names.length <= 2) return names.join(', ');
+    return '${names.take(2).join(', ')} +${names.length - 2}';
+  }
+
+  bool get hasAppliedJobFilters =>
+      recommendedSelected.value ||
+      selectedDistanceMiles.value != null ||
+      selectedServiceTypeIds.isNotEmpty;
 
   final newJobs = <Jobs>[].obs;
   final activeJobs = <Jobs>[].obs;
   final completedJobs = <Jobs>[].obs;
+  final checkoutJobs = <Jobs>[].obs;
   final requestedJobs = <Jobs>[].obs;
 
   // Tracks which job IDs are currently being requested (shows per-card loading)
@@ -34,10 +68,14 @@ class JobController extends GetxController {
   // ── Tab the current tab is "Requested" ────────────────────────────────────
   bool get isRequestedTab => selectedTab.value == JobTabType.requestedJob;
 
+  TextEditingController get currentSearchController =>
+      searchControllers[selectedTab.value]!;
+
   @override
   void onInit() {
     super.onInit();
-    loadJobs();
+    loadTab(selectedTab.value);
+    loadServiceTypes();
   }
 
   // ── Error helper ──────────────────────────────────────────────────────────
@@ -63,23 +101,49 @@ class JobController extends GetxController {
 
   // ── Load all tabs ─────────────────────────────────────────────────────────
 
-  Future<void> loadJobs() async {
+  Future<void> loadJobs() => loadTab(selectedTab.value);
+
+  Future<void> loadTab(JobTabType type) async {
     isLoading.value = true;
     try {
-    final results = await Future.wait([
-      api.getNewJobsApi(), // GET /api/technician/jobs?filter=new
-      api.getActiveJobsApi(), // GET /api/technician/jobs?filter=active
-      api.getCompletedJobsApi(), // GET /api/technician/jobs?filter=completed
-      api.getRequestedJobsApi(), // GET /api/technician/jobs?filter=requested
-    ]);
+      final result = switch (type) {
+        JobTabType.newJobs => await api.getRecommendedJobsApi(
+          recommended: recommendedSelected.value,
+          distanceMiles: selectedDistanceMiles.value,
+          latitude: _hasLocation ? LocationService.to.latitude.value : null,
+          longitude: _hasLocation ? LocationService.to.longitude.value : null,
+          serviceTypeIds: selectedServiceTypeIds.toList(),
+        ),
+        JobTabType.activeJobs => await api.getActiveJobsApi(
+          distanceMiles: selectedDistanceMiles.value,
+          latitude: _hasLocation ? LocationService.to.latitude.value : null,
+          longitude: _hasLocation ? LocationService.to.longitude.value : null,
+          serviceTypeIds: selectedServiceTypeIds.toList(),
+        ),
+        JobTabType.completedJobs => await api.getCompletedJobsApi(),
+        JobTabType.checkoutJobs => await api.getCheckoutJobsApi(),
+        JobTabType.requestedJob => await api.getRequestedJobsApi(),
+      };
 
-    if (results[0].success == true) newJobs.value = results[0].data?.jobs ?? [];
-    if (results[1].success == true)
-      activeJobs.value = results[1].data?.jobs ?? [];
-    if (results[2].success == true)
-      completedJobs.value = results[2].data?.jobs ?? [];
-    if (results[3].success == true)
-      requestedJobs.value = results[3].data?.jobs ?? [];
+      if (result.success != true) return;
+      final jobs = result.data?.jobs ?? [];
+      switch (type) {
+        case JobTabType.newJobs:
+          newJobs.value = jobs;
+          break;
+        case JobTabType.activeJobs:
+          activeJobs.value = jobs;
+          break;
+        case JobTabType.completedJobs:
+          completedJobs.value = jobs;
+          break;
+        case JobTabType.checkoutJobs:
+          checkoutJobs.value = jobs;
+          break;
+        case JobTabType.requestedJob:
+          requestedJobs.value = jobs;
+          break;
+      }
     } catch (e) {
       await _showError(e);
     } finally {
@@ -87,14 +151,68 @@ class JobController extends GetxController {
     }
   }
 
+  bool get _hasLocation {
+    final location = LocationService.to;
+    return location.latitude.value != 0.0 && location.longitude.value != 0.0;
+  }
+
+  Future<void> loadServiceTypes() async {
+    try {
+      isServiceTypesLoading.value = true;
+      final result = await api.getServiceTypesApi();
+      if (result.success) {
+        serviceTypes.value = result.serviceTypes
+            .where((type) => type.isActive)
+            .toList();
+      }
+    } catch (_) {
+      // The job list remains usable when optional filter data is unavailable.
+    } finally {
+      isServiceTypesLoading.value = false;
+    }
+  }
+
+  Future<void> toggleRecommended() async {
+    recommendedSelected.toggle();
+    await loadTab(selectedTab.value);
+  }
+
+  Future<void> setDistanceMiles(int miles) async {
+    selectedDistanceMiles.value = miles;
+    await loadTab(selectedTab.value);
+  }
+
+  Future<void> resetDistanceMiles() async {
+    selectedDistanceMiles.value = null;
+    await loadTab(selectedTab.value);
+  }
+
+  Future<void> toggleServiceType(String id) async {
+    if (selectedServiceTypeIds.contains(id)) {
+      selectedServiceTypeIds.remove(id);
+    } else {
+      selectedServiceTypeIds.add(id);
+    }
+    selectedServiceTypeIds.refresh();
+    await loadTab(selectedTab.value);
+  }
+
+  Future<void> clearServiceTypes() async {
+    if (selectedServiceTypeIds.isEmpty) return;
+    selectedServiceTypeIds.clear();
+    selectedServiceTypeIds.refresh();
+    await loadTab(selectedTab.value);
+  }
+
   // ── Computed list for current tab ─────────────────────────────────────────
 
   List<Jobs> get currentJobs {
-    final q = searchQuery.value.toLowerCase();
+    final q = searchQueries[selectedTab.value]!.value.toLowerCase();
     final List<Jobs> list = switch (selectedTab.value) {
       JobTabType.newJobs => newJobs,
       JobTabType.activeJobs => activeJobs,
       JobTabType.completedJobs => completedJobs,
+      JobTabType.checkoutJobs => checkoutJobs,
       JobTabType.requestedJob => requestedJobs,
     };
     if (q.isEmpty) return list;
@@ -109,37 +227,10 @@ class JobController extends GetxController {
 
   // ── Tab switching ─────────────────────────────────────────────────────────
 
-  Future<void> changeTab(JobTabType type) async {
-    if (selectedTab.value == type) return;
+  Future<void> changeTab(JobTabType type, {bool reload = false}) async {
+    if (selectedTab.value == type && !reload) return;
     selectedTab.value = type;
-    isLoading.value = true;
-    try {
-      switch (type) {
-        case JobTabType.newJobs:
-          final result = await api.getNewJobsApi();
-          if (result.success == true) newJobs.value = result.data?.jobs ?? [];
-          break;
-        case JobTabType.activeJobs:
-          final result = await api.getActiveJobsApi();
-          if (result.success == true)
-            activeJobs.value = result.data?.jobs ?? [];
-          break;
-        case JobTabType.completedJobs:
-          final result = await api.getCompletedJobsApi();
-          if (result.success == true)
-            completedJobs.value = result.data?.jobs ?? [];
-          break;
-        case JobTabType.requestedJob:
-          final result = await api.getRequestedJobsApi();
-          if (result.success == true)
-            requestedJobs.value = result.data?.jobs ?? [];
-          break;
-      }
-    } catch (e) {
-      await _showError(e);
-    } finally {
-      isLoading.value = false;
-    }
+    await loadTab(type);
   }
 
   // ── Helpers: derive display values from Jobs ──────────────────────────────
@@ -154,7 +245,7 @@ class JobController extends GetxController {
   String formattedDate(Jobs job) {
     // 1️⃣ jobDate range takes priority
     final from = job.jobDate?.from ?? '';
-    final to   = job.jobDate?.to   ?? '';
+    final to = job.jobDate?.to ?? '';
     if (from.isNotEmpty && to.isNotEmpty) {
       return '${_fmtIso(from)} – ${_fmtTimeOnly(to)}';
     }
@@ -166,7 +257,7 @@ class JobController extends GetxController {
     try {
       final dt = DateTime.parse(raw.toString()).toLocal();
       final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final min  = dt.minute.toString().padLeft(2, '0');
+      final min = dt.minute.toString().padLeft(2, '0');
       final period = dt.hour >= 12 ? 'PM' : 'AM';
       return '${dt.day}/${dt.month} $hour:$min $period';
     } catch (_) {
@@ -339,13 +430,17 @@ class JobController extends GetxController {
       case 'arrive_by':
       case 'arrive-by':
         final before = s.arriveBeforeTime ?? '';
-        return before.isNotEmpty ? 'Arrive by: ${_fmtTime(before)}' : formattedDate(job);
+        return before.isNotEmpty
+            ? 'Arrive by: ${_fmtTime(before)}'
+            : formattedDate(job);
 
       case 'arriveafter':
       case 'arrive_after':
       case 'arrive-after':
         final after = s.arriveAfterTime ?? '';
-        return after.isNotEmpty ? 'Arrive after: ${_fmtTime(after)}' : formattedDate(job);
+        return after.isNotEmpty
+            ? 'Arrive after: ${_fmtTime(after)}'
+            : formattedDate(job);
 
       default:
         return formattedDate(job);
@@ -356,8 +451,20 @@ class JobController extends GetxController {
   String _fmtIso(String iso) {
     try {
       final dt = DateTime.parse(iso).toLocal();
-      const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                      'Jul','Aug','Sep','Oct','Nov','Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
       final m = dt.minute.toString().padLeft(2, '0');
       final p = dt.hour >= 12 ? 'PM' : 'AM';
@@ -397,8 +504,20 @@ class JobController extends GetxController {
   /// Formats an ISO date range to "Sep 8 – Sep 10".
   String _formatDateRange(String? from, String? to) {
     if (from == null && to == null) return '';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     String fmtIso(String iso) {
       try {
         final dt = DateTime.parse(iso).toLocal();
@@ -407,6 +526,7 @@ class JobController extends GetxController {
         return iso;
       }
     }
+
     if (from != null && to != null) return '${fmtIso(from)} – ${fmtIso(to)}';
     if (from != null) return fmtIso(from);
     return fmtIso(to!);
@@ -414,7 +534,7 @@ class JobController extends GetxController {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  void onSearch(String q) => searchQuery.value = q;
+  void onSearch(String q) => searchQueries[selectedTab.value]!.value = q;
 
   void openFilterScreen() => Get.toNamed(AppRoutes.jobFilterScreen);
 
@@ -448,23 +568,96 @@ class JobController extends GetxController {
   }
 
   void viewJobDetails(Jobs job) {
-    Get.toNamed(AppRoutes.jobDetailScreen, arguments: job);
+    final status = (job.status ?? '').toLowerCase();
+    if (status == 'ontheway') {
+      final from = job.jobDate?.from ?? '';
+      final to = job.jobDate?.to ?? '';
+      final time = from.isNotEmpty && to.isNotEmpty
+          ? '${_fmtIso(from)} – ${_fmtTimeOnly(to)}'
+          : from.isNotEmpty
+          ? _fmtIso(from)
+          : formattedDate(job);
+      Get.toNamed(
+        AppRoutes.scheduleJobNavigationScreen,
+        arguments: ScheduledJobModel(
+          time: time,
+          duration: job.estimatedTime ?? '',
+          title: job.title ?? '',
+          jobId: job.sId ?? '',
+          distance: job.location ?? '',
+          rawJobId: job.sId,
+          lat: job.coordinates?.lat,
+          lng: job.coordinates?.lng,
+          rawJob: job,
+          status: JobStatus.onTheWay,
+        ),
+      );
+      return;
+    } else if (status == 'inprogress') {
+      final model = _buildScheduledJobModel(job);
+      Get.toNamed(AppRoutes.scheduleJobDetailScreen, arguments: model);
+    } else {
+      Get.toNamed(AppRoutes.jobDetailScreen, arguments: job);
+    }
+  }
+
+  String _formatDate(dynamic raw) {
+    if (raw == null) return 'TBD';
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$min $period';
+    } catch (_) {
+      return raw.toString();
+    }
+  }
+
+  ScheduledJobModel _buildScheduledJobModel(Jobs job) {
+    final from = job.jobDate?.from ?? '';
+    final to = job.jobDate?.to ?? '';
+    final time = () {
+      if (from.isNotEmpty && to.isNotEmpty) {
+        return '${_formatDate(from)} – ${_formatDate(to)}';
+      }
+      if (from.isNotEmpty) return _formatDate(from);
+      return _formatDate(job.scheduledDate ?? job.serviceDate);
+    }();
+    return ScheduledJobModel(
+      time: time,
+      duration: job.estimatedTime ?? '',
+      title: job.title ?? '',
+      jobId: job.sId ?? '',
+      distance: job.location ?? '',
+      rawJobId: (job.sId ?? '').isNotEmpty ? job.sId : null,
+      lat: job.coordinates?.lat,
+      lng: job.coordinates?.lng,
+      rawJob: job,
+      status: (job.status ?? '').toLowerCase() == 'inprogress'
+          ? JobStatus.inProgress
+          : (job.status ?? '').toLowerCase() == 'ontheway'
+          ? JobStatus.onTheWay
+          : (job.status ?? '').toLowerCase() == 'completed'
+          ? JobStatus.completed
+          : JobStatus.upcoming,
+    );
   }
 
   /// Opens Google Maps navigation to the job location.
-  void navigateToJob(Jobs job) {
-    final lat = job.coordinates?.lat;
-    final lng = job.coordinates?.lng;
-    if (lat != null && lng != null) {
-      MapLaunchHelper.navigateTo(lat: lat, lng: lng);
-    } else {
-      Get.snackbar(
-        'Navigation',
-        'No location coordinates available for this job.',
-        snackPosition: SnackPosition.TOP,
-      );
-    }
-  }
+  // void navigateToJob(Jobs job) {
+  //   final lat = job.coordinates?.lat;
+  //   final lng = job.coordinates?.lng;
+  //   if (lat != null && lng != null) {
+  //     MapLaunchHelper.navigateTo(lat: lat, lng: lng);
+  //   } else {
+  //     Get.snackbar(
+  //       'Navigation',
+  //       'No location coordinates available for this job.',
+  //       snackPosition: SnackPosition.TOP,
+  //     );
+  //   }
+  // }
 
   void acceptAtSame(Jobs job) {
     Get.toNamed(AppRoutes.jobDetailScreen, arguments: job);
@@ -611,7 +804,9 @@ class JobController extends GetxController {
 
   @override
   void onClose() {
-    searchController.dispose();
+    for (final searchController in searchControllers.values) {
+      searchController.dispose();
+    }
     super.onClose();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:technicianapp/core/end_point/end_point.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
@@ -26,6 +27,29 @@ class SocketService {
   static final SocketService instance = SocketService._();
 
   IO.Socket? _socket;
+  final Set<void Function()> _connectionListeners = {};
+  void addConnectionListener(void Function() listener) =>
+      _connectionListeners.add(listener);
+  void removeConnectionListener(void Function() listener) =>
+      _connectionListeners.remove(listener);
+
+  void emitWithAck(String event, dynamic data, void Function(dynamic) ack) {
+    if (!isConnected) return;
+    final socket = _socket!;
+    final ackId = '${socket.ids}';
+    late final Timer timeout;
+    timeout = Timer(const Duration(seconds: 5), () {
+      socket.acks.remove(ackId);
+    });
+    socket.emitWithAck(
+      event,
+      data,
+      ack: (dynamic result) {
+        timeout.cancel();
+        ack(result);
+      },
+    );
+  }
 
   bool _isInitialized = false;
   bool _isManuallyDisconnected = false;
@@ -46,8 +70,10 @@ class SocketService {
   // ── Public socket accessor ─────────────────────────────────────────────────
 
   IO.Socket get socket {
-    assert(_isInitialized && _socket != null,
-        'SocketService.initialize() must be called before accessing socket.');
+    assert(
+      _isInitialized && _socket != null,
+      'SocketService.initialize() must be called before accessing socket.',
+    );
     return _socket!;
   }
 
@@ -64,6 +90,7 @@ class SocketService {
       _socketUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
+          .setAuth({'token': AuthService.to.token.value})
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionAttempts(10)
@@ -82,14 +109,16 @@ class SocketService {
     _socket!.onConnect((_) {
       print('[Socket] Connected  id=${_socket!.id}');
       _hasJoinedRoom = false;
-      _joinedRequestRooms.clear(); // rooms are per-connection server-side
       _tryJoinRoom();
+      _rejoinRequestRooms();
+      for (final listener in _connectionListeners.toList()) {
+        listener();
+      }
     });
 
     _socket!.onDisconnect((reason) {
       print('[Socket] Disconnected  reason=$reason');
       _hasJoinedRoom = false;
-      _joinedRequestRooms.clear();
     });
 
     _socket!.onConnectError((error) {
@@ -207,6 +236,7 @@ class SocketService {
     }
 
     print('[Socket] Connecting…');
+    _socket!.auth = {'token': AuthService.to.token.value};
     _socket!.connect();
   }
 
@@ -228,6 +258,7 @@ class SocketService {
     }
 
     print('[Socket] Not connected — reconnecting…');
+    _socket!.auth = {'token': AuthService.to.token.value};
     _socket!.connect();
   }
 
@@ -271,14 +302,14 @@ class SocketService {
     }
     // Off first so we never stack duplicate listeners for the same event
     // within the SAME controller registration cycle (e.g. reconnect).
-    _socket!.off(event);
+    _socket!.off(event, callback);
     _socket!.on(event, callback);
     print('[Socket] Listening to "$event"');
   }
 
-  void off(String event) {
+  void off(String event, [Function(dynamic)? callback]) {
     if (!_isInitialized) return;
-    _socket!.off(event);
+    _socket!.off(event, callback);
     print('[Socket] Stopped listening to "$event"');
   }
 

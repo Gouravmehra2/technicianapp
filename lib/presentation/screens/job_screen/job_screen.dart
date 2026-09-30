@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
 import 'package:technicianapp/constant/common_widgets/app_shimmer.dart';
+import 'package:technicianapp/constant/common_widgets/empty_api_state.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 import 'job_controller.dart';
@@ -17,70 +18,78 @@ class JobScreen extends GetView<JobController> {
   Widget build(BuildContext context) {
     return MyScaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: const Text(
+          'Jobs',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 22,
+            fontFamily: 'Inter',
+            color: Colors.black,
+          ),
+        ),
+        actions: [
+          GestureDetector(
+            onTap: controller.openFilterScreen,
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColor.brownAccentPrimary,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.tune, color: Colors.white, size: 20),
+            ),
+          ).paddingOnly(right: 10),
+        ],
+      ),
       body: Column(
         children: [
-          // ── Next Schedule Banner ──────────────────────────────────────────
-          _NextScheduleBanner(),
-          // ── Search + Filter ───────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4F4F4),
-                      borderRadius: BorderRadius.circular(30),
+          _JobTabBar(controller: controller),
+          Obx(
+            () => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F4F4),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: TextField(
+                  key: ValueKey(controller.selectedTab.value),
+                  controller: controller.currentSearchController,
+                  onChanged: controller.onSearch,
+                  style: AppTextStyle.bodyMediumRegular.copyWith(
+                    color: AppColor.blackShade1,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColor.coolGrayText,
                     ),
-                    child: TextField(
-                      controller: controller.searchController,
-                      onChanged: controller.onSearch,
-                      style: AppTextStyle.bodyMediumRegular.copyWith(
-                        color: AppColor.blackShade1,
-                      ),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: AppColor.coolGrayText,
-                          size: 20,
-                        ),
-                        hintText: 'Search for job or service',
-                        hintStyle: AppTextStyle.bodyMediumRegular.copyWith(
-                          color: AppColor.coolGrayText,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 13,
-                        ),
-                      ),
+                    hintText: 'Search in ${controller.selectedTab.value.name}',
+                    hintStyle: AppTextStyle.bodyMediumRegular.copyWith(
+                      color: AppColor.coolGrayText,
                     ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
                   ),
                 ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: controller.openFilterScreen,
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: AppColor.brownAccentPrimary,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.tune,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-          // ── Tab Bar ───────────────────────────────────────────────────────
-          _JobTabBar(controller: controller),
+          Obx(
+            () =>
+                controller.selectedTab.value == JobTabType.newJobs &&
+                    controller.hasAppliedJobFilters
+                ? _ProfessionalFilterSummary(controller: controller)
+                : const SizedBox.shrink(),
+          ),
           const SizedBox(height: 4),
-          // ── Job List ──────────────────────────────────────────────────────
           Expanded(
             child: Obx(() {
               final tabKey = ValueKey(controller.selectedTab.value);
@@ -115,65 +124,15 @@ class JobScreen extends GetView<JobController> {
                 );
               }
 
-              final isNewTab =
-                  controller.selectedTab.value == JobTabType.newJobs;
               final jobs = controller.currentJobs;
 
               Widget content;
 
               if (jobs.isEmpty) {
-                content = Center(
+                content = EmptyApiState(
                   key: ValueKey('empty-${controller.selectedTab.value}'),
-                  child: Text(
-                    'No jobs found',
-                    style: AppTextStyle.bodyMediumRegular.copyWith(
-                      color: AppColor.coolGrayText,
-                    ),
-                  ),
-                );
-              } else if (isNewTab) {
-                final recommendedJob = jobs.first;
-                final listJobs = jobs.length > 1 ? jobs.sublist(1) : <Jobs>[];
-
-                content = ListView(
-                  key: tabKey,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  children: [
-                    _RecommendedJobSection(
-                      job: recommendedJob,
-                      extraCount: listJobs.length,
-                      controller: controller,
-                    ),
-                    const SizedBox(height: 20),
-                    if (listJobs.isNotEmpty) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'New Job List',
-                            style: AppTextStyle.titleMediumSemiBold.copyWith(
-                              color: AppColor.blackShade1,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...listJobs.asMap().entries.map(
-                        (e) => Padding(
-                          padding: EdgeInsets.only(
-                            bottom: e.key < listJobs.length - 1 ? 12 : 0,
-                          ),
-                          child: _JobCard(
-                            job: e.value,
-                            controller: controller,
-                            isRequestedTab: false,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  title: 'No Jobs Found',
+                  onRefresh: controller.loadJobs,
                 );
               } else {
                 final isRequested =
@@ -211,6 +170,423 @@ class JobScreen extends GetView<JobController> {
             }),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfessionalFilterSummary extends StatelessWidget {
+  final JobController controller;
+
+  const _ProfessionalFilterSummary({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      () => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _AppliedFilterChip(
+                      icon: controller.recommendedSelected.value
+                          ? Icons.star_rounded
+                          : Icons.list_alt_rounded,
+                      label: controller.recommendedSelected.value
+                          ? 'Recommended jobs'
+                          : 'All jobs',
+                      highlighted: controller.recommendedSelected.value,
+                    ),
+                    if (controller.selectedDistanceMiles.value != null) ...[
+                      const SizedBox(width: 6),
+                      _AppliedFilterChip(
+                        icon: Icons.location_on_outlined,
+                        label: '${controller.selectedDistanceMiles.value} mi',
+                      ),
+                    ],
+                    if (controller.selectedServiceTypeIds.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      _AppliedFilterChip(
+                        icon: Icons.business_center_outlined,
+                        label: controller.selectedServiceTypeLabel,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterCaption extends StatelessWidget {
+  const _FilterCaption();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'APPLIED FILTERS',
+      style: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.7,
+        color: AppColor.coolGrayText,
+      ),
+    );
+  }
+}
+
+class _NewJobsFilterBar extends StatelessWidget {
+  final JobController controller;
+
+  const _NewJobsFilterBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      () => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBF5),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE8D5B0)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FilterCaption(),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _AppliedFilterChip(
+                          icon: controller.recommendedSelected.value
+                              ? Icons.star_rounded
+                              : Icons.list_alt_rounded,
+                          label: controller.recommendedSelected.value
+                              ? 'Recommended jobs'
+                              : 'All jobs',
+                          highlighted: controller.recommendedSelected.value,
+                        ),
+                        if (controller.selectedDistanceMiles.value != null)
+                          _AppliedFilterChip(
+                            icon: Icons.location_on_outlined,
+                            label:
+                                '${controller.selectedDistanceMiles.value} mi',
+                          ),
+                        if (controller.selectedServiceTypeIds.isNotEmpty)
+                          _AppliedFilterChip(
+                            icon: Icons.business_center_outlined,
+                            label: controller.selectedServiceTypeLabel,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: controller.openFilterScreen,
+                tooltip: 'Edit filters',
+                icon: const Icon(
+                  Icons.tune_rounded,
+                  size: 20,
+                  color: AppColor.brownAccentPrimary,
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFeedSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Obx(
+          () => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('Job feed')),
+              for (final option in const [
+                (false, 'All Jobs'),
+                (true, 'Recommended Jobs'),
+              ])
+                RadioListTile<bool>(
+                  value: option.$1,
+                  groupValue: controller.recommendedSelected.value,
+                  title: Text(option.$2),
+                  activeColor: AppColor.brownAccentPrimary,
+                  onChanged: (value) {
+                    if (value != null &&
+                        value != controller.recommendedSelected.value) {
+                      controller.toggleRecommended();
+                    }
+                    Navigator.pop(context);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDistanceSheet(BuildContext context) {
+    int? draft = controller.selectedDistanceMiles.value;
+    const distances = [5, 10, 20, 30, 50];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('Distance'),
+                subtitle: Text('Choose a radius for job results'),
+              ),
+              for (final distance in distances)
+                RadioListTile<int>(
+                  value: distance,
+                  groupValue: draft,
+                  activeColor: AppColor.brownAccentPrimary,
+                  title: Text('Within $distance miles'),
+                  onChanged: (value) => setState(() => draft = value),
+                ),
+              ListTile(
+                leading: const Icon(Icons.refresh),
+                title: const Text('Any distance'),
+                trailing: draft == null
+                    ? const Icon(
+                        Icons.check,
+                        color: AppColor.brownAccentPrimary,
+                      )
+                    : null,
+                onTap: () => setState(() => draft = null),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => setState(() => draft = null),
+                        child: const Text('Reset'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          draft == null
+                              ? controller.resetDistanceMiles()
+                              : controller.setDistanceMiles(draft!);
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColor.brownAccentPrimary,
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTypesSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Obx(
+          () => SizedBox(
+            height: MediaQuery.of(context).size.height * 0.7,
+            child: Column(
+              children: [
+                ListTile(
+                  title: const Text('Job Types'),
+                  trailing: TextButton(
+                    onPressed: controller.clearServiceTypes,
+                    child: const Text('Clear'),
+                  ),
+                ),
+                Expanded(
+                  child: controller.isServiceTypesLoading.value
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          itemCount: controller.serviceTypes.length,
+                          itemBuilder: (_, index) {
+                            final type = controller.serviceTypes[index];
+                            return CheckboxListTile(
+                              value: controller.selectedServiceTypeIds.contains(
+                                type.id,
+                              ),
+                              activeColor: AppColor.brownAccentPrimary,
+                              title: Text(type.name),
+                              onChanged: (_) =>
+                                  controller.toggleServiceType(type.id),
+                            );
+                          },
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.brownAccentPrimary,
+                      ),
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppliedFilterChip extends StatelessWidget {
+  final controller = JobController();
+  final IconData icon;
+  final String label;
+  final bool highlighted;
+
+  _AppliedFilterChip({
+    required this.icon,
+    required this.label,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = highlighted ? Colors.white : AppColor.brownAccentPrimary;
+    return InkWell(
+      onTap: () {
+        controller.openFilterScreen();
+      },
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 190),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColor.brownAccentPrimary : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: highlighted
+                ? AppColor.brownAccentPrimary
+                : const Color(0xFFE3CBA7),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JobFilterButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _JobFilterButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColor.brownAccentPrimary : Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: const Color(0xFFE3CBA7)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 19,
+              color: selected ? Colors.white : AppColor.brownAccentPrimary,
+            ),
+            const SizedBox(width: 3),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppColor.blackShade1,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -555,7 +931,6 @@ class _RecommendedJobCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          // Action buttons
           Row(
             children: [
               Expanded(
@@ -563,72 +938,42 @@ class _RecommendedJobCard extends StatelessWidget {
                   final isRequesting = controller.requestingJobIds.contains(
                     job.sId ?? '',
                   );
-                  return GestureDetector(
-                    onTap: isRequesting
+                  return OutlinedButton(
+                    onPressed: isRequesting
                         ? null
                         : () => controller.requestJob(job),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOut,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: isRequesting
-                            ? Colors.white.withValues(alpha: 0.15)
-                            : Colors.transparent,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white54),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: isRequesting ? Colors.white38 : Colors.white54,
-                        ),
-                      ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: isRequesting
-                            ? const SizedBox(
-                                key: ValueKey('rec-loading'),
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Request Job',
-                                key: ValueKey('rec-label'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: Colors.white,
-                                ),
-                              ),
                       ),
                     ),
+                    child: isRequesting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Request Job'),
                   );
                 }),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: GestureDetector(
-                  onTap: () => controller.counterOffer(job),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                child: ElevatedButton(
+                  onPressed: () => controller.counterOffer(job),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColor.brownAccentPrimary,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    child: Text(
-                      'Counter Offer',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: AppColor.brownAccentPrimary,
-                      ),
-                    ),
                   ),
+                  child: const Text('Counter Offer'),
                 ),
               ),
             ],
@@ -766,12 +1111,13 @@ class _JobTabBar extends StatefulWidget {
 
 class _JobTabBarState extends State<_JobTabBar> {
   final _scrollController = ScrollController();
-  final List<GlobalKey> _keys = List.generate(4, (_) => GlobalKey());
+  final List<GlobalKey> _keys = List.generate(5, (_) => GlobalKey());
 
   static const _tabs = [
     _TabItem(JobTabType.newJobs, 'New Jobs'),
     _TabItem(JobTabType.activeJobs, 'Active Jobs'),
     _TabItem(JobTabType.completedJobs, 'Completed Jobs'),
+    _TabItem(JobTabType.checkoutJobs, 'Checkout'),
     _TabItem(JobTabType.requestedJob, 'Requested Jobs'),
   ];
 
@@ -870,16 +1216,22 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = job.status ?? '';
+    final isOnTheWay = status.toLowerCase() == 'ontheway';
     final badge = isRequestedTab
-        ? _badgeFromStatus(job.requestStatus.toString() ?? '')
+        ? _badgeFromStatus(job.requestStatus ?? '')
         : _badgeFromStatus(status);
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isOnTheWay ? const Color(0xFFF0F7FF) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColor.lightGreyColor),
+        border: Border.all(
+          color: isOnTheWay
+              ? const Color(0xFF1A73E8).withValues(alpha: 0.35)
+              : AppColor.lightGreyColor,
+          width: isOnTheWay ? 1.5 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -891,6 +1243,35 @@ class _JobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isOnTheWay) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A73E8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.navigation, color: Colors.white, size: 15),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'On The Way — Navigation Active',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // ── Title Row ──────────────────────────────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,138 +1376,144 @@ class _JobCard extends StatelessWidget {
               ),
             ],
           ),
-          // ── New Jobs tab: Request Job + Counter Offer ──────────────────────
-          // if (!isRequestedTab && !isCompleted) ...[
-          //   const SizedBox(height: 10),
-          //   Row(
-          //     children: [
-          //       Expanded(
-          //         child: Obx(() {
-          //           final isRequesting =
-          //               controller.requestingJobIds.contains(job.sId ?? '');
-          //           return GestureDetector(
-          //             onTap: isRequesting
-          //                 ? null
-          //                 : () => controller.requestJob(job),
-          //             child: AnimatedContainer(
-          //               duration: const Duration(milliseconds: 250),
-          //               curve: Curves.easeInOut,
-          //               padding: const EdgeInsets.symmetric(vertical: 12),
-          //               decoration: BoxDecoration(
-          //                 color: isRequesting
-          //                     ? AppColor.lightGreyColor.withValues(alpha: 0.5)
-          //                     : Colors.white,
-          //                 borderRadius: BorderRadius.circular(30),
-          //                 border: Border.all(color: AppColor.lightGreyColor),
-          //               ),
-          //               child: AnimatedSwitcher(
-          //                 duration: const Duration(milliseconds: 200),
-          //                 child: isRequesting
-          //                     ? const SizedBox(
-          //                         key: ValueKey('card-loading'),
-          //                         width: 18,
-          //                         height: 18,
-          //                         child: CircularProgressIndicator(
-          //                           strokeWidth: 2,
-          //                           color: AppColor.brownAccentPrimary,
-          //                         ),
-          //                       )
-          //                     : Text(
-          //                         'Request job',
-          //                         key: const ValueKey('card-label'),
-          //                         textAlign: TextAlign.center,
-          //                         style: AppTextStyle.buttonSmall.copyWith(
-          //                           color: AppColor.blackShade1,
-          //                         ),
-          //                       ),
-          //               ),
-          //             ),
-          //           );
-          //         }),
-          //       ),
-          //       const SizedBox(width: 10),
-          //       Expanded(
-          //         child: _FilledButton(
-          //           label: 'Counter Offer',
-          //           onTap: () => controller.counterOffer(job),
-          //         ),
-          //       ),
-          //     ],
-          //   ),
-          // ],
-          // ── Active Jobs tab: Navigate button ────────────────────────────
-          if (controller.selectedTab.value == JobTabType.activeJobs) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => controller.navigateToJob(job),
-              icon: const Icon(Icons.navigation_outlined, size: 16),
-              label: const Text('NAVIGATE'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColor.blackShade1,
-                side: const BorderSide(color: Color(0xFFDDDDDD)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                minimumSize: const Size(double.infinity, 42),
-                textStyle: AppTextStyle.labelSmallMedium.copyWith(
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ],
-          // ── Requested tab: Cancel Request + Counter Offer ──────────────────
-          if (isRequestedTab) ...[
+          if (controller.selectedTab.value == JobTabType.newJobs) ...[
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: _OutlineButton(
-                    label: 'Cancel Request',
-                    onTap: () => controller.cancelRequest(job),
-                    borderColor: AppColor.lightGreyColor,
-                    textColor: AppColor.blackShade1,
-                  ),
+                  child: Obx(() {
+                    final isRequesting = controller.requestingJobIds.contains(
+                      job.sId ?? '',
+                    );
+                    return OutlinedButton(
+                      onPressed: isRequesting
+                          ? null
+                          : () => controller.requestJob(job),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColor.blackShade1,
+                        side: const BorderSide(color: AppColor.lightGreyColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: isRequesting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColor.brownAccentPrimary,
+                              ),
+                            )
+                          : const Text('Request Job'),
+                    );
+                  }),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _FilledButton(
-                    label: 'Counter Offer',
-                    onTap: () => controller.counterOffer(job),
+                  child: ElevatedButton(
+                    onPressed: () => controller.counterOffer(job),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColor.brownAccentPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text('Counter Offer'),
                   ),
                 ),
               ],
             ),
           ],
-          // ── View Details / Request Payment ────────────────────────────────
-          const SizedBox(height: 8),
-          if (controller.showRequestPayment(job))
-            _FilledButton(
-              label: 'Request for Payment',
-              onTap: () => controller.requestPayment(job),
-            )
-          else
-            GestureDetector(
-              onTap: () => controller.viewJobDetails(job),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColor.brownAccentPrimary,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Text(
-                  'Click to view Details',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Colors.white,
-                    fontStyle: FontStyle.italic,
+          // ── Active Jobs tab: Navigate button ────────────────────────────
+          // if (!isTerminal &&
+          //     controller.selectedTab.value == JobTabType.activeJobs) ...[
+          //   const SizedBox(height: 10),
+          //   OutlinedButton.icon(
+          //     onPressed: () => controller.navigateToJob(job),
+          //     icon: const Icon(Icons.navigation_outlined, size: 16),
+          //     label: const Text('NAVIGATE'),
+          //     style: OutlinedButton.styleFrom(
+          //       foregroundColor: AppColor.blackShade1,
+          //       side: const BorderSide(color: Color(0xFFDDDDDD)),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(20),
+          //       ),
+          //       minimumSize: const Size(double.infinity, 42),
+          //       textStyle: AppTextStyle.labelSmallMedium.copyWith(
+          //         letterSpacing: 0.5,
+          //       ),
+          //     ),
+          //   ),
+          // ],
+          if (isRequestedTab) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => controller.cancelRequest(job),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColor.blackShade1,
+                      side: const BorderSide(color: AppColor.lightGreyColor),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text('Cancel Request'),
                   ),
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => controller.counterOffer(job),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColor.brownAccentPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text('Counter Offer'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          // ── View Details ──────────────────────────────────────────────
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => controller.viewJobDetails(job),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isOnTheWay
+                    ? const Color(0xFF1A73E8)
+                    : AppColor.brownAccentPrimary,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (isOnTheWay) ...[
+                    const Icon(Icons.navigation, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    isOnTheWay ? 'Resume Navigation' : 'View Details',
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
         ],
       ),
     );
@@ -1136,9 +1523,11 @@ class _JobCard extends StatelessWidget {
 // ─── Badge from status string ─────────────────────────────────────────────────
 
 _JobBadgeType _badgeFromStatus(String status) {
-  return switch (status) {
-    'in-progress' => _JobBadgeType.inProgress,
+  return switch (status.toLowerCase()) {
+    'inprogress' => _JobBadgeType.inProgress,
+    'ontheway' => _JobBadgeType.onTheWay,
     'completed' => _JobBadgeType.completed,
+    'checkout' => _JobBadgeType.checkout,
     'assigned' => _JobBadgeType.assigned,
     'canceled' => _JobBadgeType.canceled,
     'pending' => _JobBadgeType.pending,
@@ -1153,7 +1542,9 @@ enum _JobBadgeType {
   open,
   assigned,
   inProgress,
+  onTheWay,
   completed,
+  checkout,
   canceled,
   pending,
   accepted,
@@ -1195,7 +1586,9 @@ class _BadgeChip extends StatelessWidget {
       _JobBadgeType.open => ('Open', const Color(0xFF1565C0)),
       _JobBadgeType.assigned => ('Assigned', const Color(0xFF008614)),
       _JobBadgeType.inProgress => ('In Progress', const Color(0xFFFF9800)),
+      _JobBadgeType.onTheWay => ('On The Way', const Color(0xFF1565C0)),
       _JobBadgeType.completed => ('Completed', const Color(0xFF4CAF50)),
+      _JobBadgeType.checkout => ('Checkout', const Color(0xFF2E7D32)),
       _JobBadgeType.canceled => ('Canceled', const Color(0xFF9E9E9E)),
       _JobBadgeType.pending => ('Pending', const Color(0xFFFFA726)),
       _JobBadgeType.accepted => ('Accepted', const Color(0xFF008614)),
@@ -1216,71 +1609,6 @@ class _BadgeChip extends StatelessWidget {
           fontWeight: FontWeight.w600,
           fontSize: 10,
           color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Filled Button ────────────────────────────────────────────────────────────
-
-class _FilledButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _FilledButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: AppColor.brownAccentPrimary,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: AppTextStyle.buttonSmall.copyWith(color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Outline Button ───────────────────────────────────────────────────────────
-
-class _OutlineButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  final Color borderColor;
-  final Color textColor;
-
-  const _OutlineButton({
-    required this.label,
-    required this.onTap,
-    required this.borderColor,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: borderColor),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: AppTextStyle.buttonSmall.copyWith(color: textColor),
         ),
       ),
     );

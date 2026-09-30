@@ -8,6 +8,7 @@ import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/models/user_model.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 import 'package:technicianapp/core/services/social_auth_service.dart';
 
 class EmailLoginController extends GetxController {
@@ -33,15 +34,14 @@ class EmailLoginController extends GetxController {
   // ── Validators ────────────────────────────────────────────────────────────
 
   FormFieldValidator<String> get emailValidator => CommonValidators.compose([
-        CommonValidators.required(message: 'validation_email_required'.tr),
-        CommonValidators.email(message: 'validation_email'.tr),
-      ]);
+    CommonValidators.required(message: 'validation_email_required'.tr),
+    CommonValidators.email(message: 'validation_email'.tr),
+  ]);
 
   FormFieldValidator<String> get passwordValidator => CommonValidators.compose([
-        CommonValidators.required(message: 'validation_password_required'.tr),
-        CommonValidators.strongPassword(
-            message: 'validation_password_strength'.tr),
-      ]);
+    CommonValidators.required(message: 'validation_password_required'.tr),
+    CommonValidators.strongPassword(message: 'validation_password_strength'.tr),
+  ]);
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
@@ -56,10 +56,18 @@ class EmailLoginController extends GetxController {
     try {
       final email = emailController.text.trim();
       final password = passwordController.text;
+      String? deviceToken;
+      try {
+        final firebase = FirebaseService.to;
+        deviceToken = firebase.token ?? await firebase.refreshToken();
+      } catch (error) {
+        debugPrint('[EmailLogin] FCM token unavailable: $error');
+      }
 
       final response = await _apiRepo.loginWithEmailApi(
         email: email,
         password: password,
+        fcmToken: deviceToken,
       );
 
       final data = response.data as Map<String, dynamic>;
@@ -137,14 +145,12 @@ class EmailLoginController extends GetxController {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   void navigateToForgotPassword() => Get.toNamed(
-        AppRoutes.forgotPasswordScreen,
-        arguments: ForgotPasswordArgs.email(prefillEmail: ''),
-      );
+    AppRoutes.forgotPasswordScreen,
+    arguments: ForgotPasswordArgs.email(prefillEmail: ''),
+  );
 
-  void navigateToSignUp() => Get.toNamed(
-        AppRoutes.signUpScreen,
-        arguments: SignUpArgs.email(),
-      );
+  void navigateToSignUp() =>
+      Get.toNamed(AppRoutes.signUpScreen, arguments: SignUpArgs.email());
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 

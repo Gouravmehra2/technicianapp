@@ -33,7 +33,11 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
         ),
         title: Obx(
           () => Text(
-            controller.isNavigating.value ? 'Live Navigation' : 'Route Preview',
+            controller.isResuming.value
+                ? 'Resuming Navigation'
+                : controller.isNavigating.value
+                ? 'Live Navigation'
+                : 'Route Preview',
             style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 20,
@@ -132,6 +136,13 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
                               ],
                             ),
                           )
+                        : controller.isResuming.value
+                        ? _InfoChip(
+                            icon: Icons.sync,
+                            value: 'SYNC',
+                            label: 'Mode',
+                            valueColor: const Color(0xFF1A73E8),
+                          )
                         : _InfoChip(
                             icon: controller.isNavigating.value
                                 ? Icons.navigation
@@ -179,76 +190,8 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
                   ),
                 ),
 
-                // ── Turn-by-turn instruction banner (live navigation only) ──
-                Obx(
-                  () => controller.isNavigating.value &&
-                          controller.currentInstruction.value.isNotEmpty
-                      ? Positioned(
-                          top: 10,
-                          left: 12,
-                          right: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A73E8),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.18),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.turn_right,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        controller.currentInstruction.value,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
-                                          fontFamily: 'Inter',
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (controller.nextInstruction.value.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    controller.nextInstruction.value,
-                                    style: const TextStyle(
-                                      color: Color(0xCCFFFFFF),
-                                      fontSize: 11,
-                                      fontFamily: 'Inter',
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
+                // Turn-by-turn instructions are not available from the
+                // backend directions API — banner removed.
 
                 // Re-center FAB
                 Positioned(
@@ -332,15 +275,51 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
                 );
               }
 
+              // ── RESUMING state — auto-starting for an ontheway job ───
+              if (controller.isResuming.value) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF5FF),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: const Color(0xFF1A73E8).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Color(0xFF1A73E8),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Resuming navigation…',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: Color(0xFF1A73E8),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
               // ── PREVIEW state — show Start Navigation ──────────────────
               if (!controller.isNavigating.value) {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Destination label
                     _DestinationRow(job: controller.job),
                     const SizedBox(height: 14),
-                    // Start Navigation button
                     GestureDetector(
                       onTap: controller.startNavigation,
                       child: Container(
@@ -372,27 +351,6 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: Get.find<ScheduleJobController>().cancelJob,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFEEEE),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: const Text(
-                          '✕  Cancel',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 );
               }
@@ -401,6 +359,73 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Google Maps-style "Navigation in progress" banner
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A73E8).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF1A73E8).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1A73E8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.navigation,
+                            color: Colors.white,
+                            size: 17,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Navigation in progress',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: Color(0xFF1A73E8),
+                                ),
+                              ),
+                              Text(
+                                'Live location is being shared',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Pulsing green dot
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF34A853),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   _DestinationRow(job: controller.job),
                   const SizedBox(height: 14),
                   // Reached button
@@ -420,27 +445,6 @@ class ScheduleJobNavigationScreen extends GetView<NavigationController> {
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 16,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: Get.find<ScheduleJobController>().cancelJob,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFEEEE),
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: const Text(
-                        '✕  Cancel Route',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
                           fontFamily: 'Inter',
                         ),
                       ),

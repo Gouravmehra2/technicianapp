@@ -171,6 +171,7 @@ class MetricsInfo {
   final int activeJobs;
   final int todaySchedule;
   final int totalRequests;
+  final int newJobs;
 
   const MetricsInfo({
     required this.totalJobsDone,
@@ -182,6 +183,7 @@ class MetricsInfo {
 
     required this.activeJobs,
     required this. todaySchedule,
+    required this. newJobs,
     required this. totalRequests
 
   });
@@ -197,6 +199,7 @@ class MetricsInfo {
       activeJobs: json['activeJobs'] as int? ?? 0,
       todaySchedule: json['todaySchedule'] as int? ?? 0,
       totalRequests: json['totalRequests'] as int? ?? 0,
+      newJobs: json['newJobs'] as int? ?? 0,
     );
   }
 }
@@ -384,7 +387,7 @@ class MarkReachedModel {
 class MarkReachedData {
   final String? reachedAt;
   final String? jobStartedAt;
-  final String? status; // 'in-progress'
+  final String? status; // 'inprogress'
 
   const MarkReachedData({this.reachedAt, this.jobStartedAt, this.status});
 
@@ -437,4 +440,59 @@ class MarkCompletedData {
       reachedAt: json['reachedAt'] as String?,
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DirectionsModel  —  POST /api/routes/directions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class DirectionsModel {
+  final bool success;
+  final DirectionsData? data;
+
+  const DirectionsModel({required this.success, this.data});
+
+  factory DirectionsModel.fromJson(Map<String, dynamic> json) {
+    return DirectionsModel(
+      success: json['success'] == true,
+      data: json['data'] != null
+          ? DirectionsData.fromJson(json['data'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+class DirectionsData {
+  /// Total route distance in metres.
+  final int distanceMeters;
+
+  /// Duration string returned by the backend, e.g. `"7114s"`.
+  final String duration;
+
+  /// Google-encoded polyline string.
+  final String encodedPolyline;
+
+  const DirectionsData({
+    required this.distanceMeters,
+    required this.duration,
+    required this.encodedPolyline,
+  });
+
+  factory DirectionsData.fromJson(Map<String, dynamic> json) {
+    return DirectionsData(
+      distanceMeters: (json['distanceMeters'] as num?)?.toInt() ?? 0,
+      duration: json['duration'] as String? ?? '0s',
+      encodedPolyline: json['encodedPolyline'] as String? ?? '',
+    );
+  }
+
+  /// Parses the duration string (e.g. `"7114s"`) into whole minutes.
+  int get durationMinutes {
+    final raw = duration.replaceAll('s', '');
+    final seconds = double.tryParse(raw) ?? 0;
+    return (seconds / 60).ceil();
+  }
+
+  /// Distance in kilometres as a double.
+  double get distanceKm => distanceMeters / 1000.0;
 }

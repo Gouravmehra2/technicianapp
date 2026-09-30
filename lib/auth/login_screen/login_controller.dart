@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,9 +21,9 @@ const Map<String, ({int min, int max})> _countryDigitLengths = {
   'US': (min: 10, max: 10), // United States
   'CA': (min: 10, max: 10), // Canada
   'GB': (min: 10, max: 11), // United Kingdom
-  'AU': (min: 9,  max: 9 ), // Australia
-  'AE': (min: 9,  max: 9 ), // UAE
-  'SA': (min: 9,  max: 9 ), // Saudi Arabia
+  'AU': (min: 9, max: 9), // Australia
+  'AE': (min: 9, max: 9), // UAE
+  'SA': (min: 9, max: 9), // Saudi Arabia
   'PK': (min: 10, max: 10), // Pakistan
   'BD': (min: 10, max: 10), // Bangladesh
   'NG': (min: 10, max: 10), // Nigeria
@@ -35,57 +33,57 @@ const Map<String, ({int min, int max})> _countryDigitLengths = {
   'FR': (min: 10, max: 10), // France
   'BR': (min: 10, max: 11), // Brazil
   'MX': (min: 10, max: 10), // Mexico
-  'ZA': (min: 9,  max: 9 ), // South Africa
-  'KE': (min: 9,  max: 9 ), // Kenya
+  'ZA': (min: 9, max: 9), // South Africa
+  'KE': (min: 9, max: 9), // Kenya
   'EG': (min: 10, max: 10), // Egypt
-  'IT': (min: 9,  max: 10), // Italy
-  'ES': (min: 9,  max: 9 ), // Spain
+  'IT': (min: 9, max: 10), // Italy
+  'ES': (min: 9, max: 9), // Spain
   'RU': (min: 10, max: 10), // Russia
   'TR': (min: 10, max: 10), // Turkey
-  'ID': (min: 9,  max: 12), // Indonesia
+  'ID': (min: 9, max: 12), // Indonesia
   'PH': (min: 10, max: 10), // Philippines
-  'TH': (min: 9,  max: 9 ), // Thailand
-  'VN': (min: 9,  max: 10), // Vietnam
-  'MY': (min: 9,  max: 10), // Malaysia
-  'SG': (min: 8,  max: 8 ), // Singapore
-  'NZ': (min: 8,  max: 9 ), // New Zealand
+  'TH': (min: 9, max: 9), // Thailand
+  'VN': (min: 9, max: 10), // Vietnam
+  'MY': (min: 9, max: 10), // Malaysia
+  'SG': (min: 8, max: 8), // Singapore
+  'NZ': (min: 8, max: 9), // New Zealand
   'AR': (min: 10, max: 10), // Argentina
   'CO': (min: 10, max: 10), // Colombia
-  'CL': (min: 9,  max: 9 ), // Chile
-  'GH': (min: 9,  max: 9 ), // Ghana
-  'ET': (min: 9,  max: 9 ), // Ethiopia
-  'TZ': (min: 9,  max: 9 ), // Tanzania
-  'UG': (min: 9,  max: 9 ), // Uganda
+  'CL': (min: 9, max: 9), // Chile
+  'GH': (min: 9, max: 9), // Ghana
+  'ET': (min: 9, max: 9), // Ethiopia
+  'TZ': (min: 9, max: 9), // Tanzania
+  'UG': (min: 9, max: 9), // Uganda
   'IQ': (min: 10, max: 10), // Iraq
   'IR': (min: 10, max: 10), // Iran
-  'MA': (min: 9,  max: 9 ), // Morocco
-  'DZ': (min: 9,  max: 9 ), // Algeria
-  'SD': (min: 9,  max: 9 ), // Sudan
-  'UA': (min: 9,  max: 9 ), // Ukraine
-  'PL': (min: 9,  max: 9 ), // Poland
-  'NL': (min: 9,  max: 9 ), // Netherlands
-  'BE': (min: 8,  max: 9 ), // Belgium
-  'SE': (min: 9,  max: 10), // Sweden
-  'NO': (min: 8,  max: 8 ), // Norway
-  'DK': (min: 8,  max: 8 ), // Denmark
-  'FI': (min: 9,  max: 10), // Finland
-  'PT': (min: 9,  max: 9 ), // Portugal
-  'CH': (min: 9,  max: 9 ), // Switzerland
+  'MA': (min: 9, max: 9), // Morocco
+  'DZ': (min: 9, max: 9), // Algeria
+  'SD': (min: 9, max: 9), // Sudan
+  'UA': (min: 9, max: 9), // Ukraine
+  'PL': (min: 9, max: 9), // Poland
+  'NL': (min: 9, max: 9), // Netherlands
+  'BE': (min: 8, max: 9), // Belgium
+  'SE': (min: 9, max: 10), // Sweden
+  'NO': (min: 8, max: 8), // Norway
+  'DK': (min: 8, max: 8), // Denmark
+  'FI': (min: 9, max: 10), // Finland
+  'PT': (min: 9, max: 9), // Portugal
+  'CH': (min: 9, max: 9), // Switzerland
   'AT': (min: 10, max: 11), // Austria
-  'CZ': (min: 9,  max: 9 ), // Czech Republic
-  'RO': (min: 9,  max: 9 ), // Romania
-  'HU': (min: 9,  max: 9 ), // Hungary
+  'CZ': (min: 9, max: 9), // Czech Republic
+  'RO': (min: 9, max: 9), // Romania
+  'HU': (min: 9, max: 9), // Hungary
   'GR': (min: 10, max: 10), // Greece
-  'IL': (min: 9,  max: 9 ), // Israel
-  'KW': (min: 8,  max: 8 ), // Kuwait
-  'QA': (min: 8,  max: 8 ), // Qatar
-  'BH': (min: 8,  max: 8 ), // Bahrain
-  'JO': (min: 9,  max: 9 ), // Jordan
-  'LB': (min: 8,  max: 8 ), // Lebanon
-  'LK': (min: 9,  max: 9 ), // Sri Lanka
+  'IL': (min: 9, max: 9), // Israel
+  'KW': (min: 8, max: 8), // Kuwait
+  'QA': (min: 8, max: 8), // Qatar
+  'BH': (min: 8, max: 8), // Bahrain
+  'JO': (min: 9, max: 9), // Jordan
+  'LB': (min: 8, max: 8), // Lebanon
+  'LK': (min: 9, max: 9), // Sri Lanka
   'NP': (min: 10, max: 10), // Nepal
-  'MM': (min: 9,  max: 10), // Myanmar
-  'KH': (min: 8,  max: 9 ), // Cambodia
+  'MM': (min: 9, max: 10), // Myanmar
+  'KH': (min: 8, max: 9), // Cambodia
   'KZ': (min: 10, max: 10), // Kazakhstan
 };
 
@@ -119,15 +117,15 @@ class LoginController extends GetxController {
 
   /// Digits-only formatter with a length cap derived from the selected country.
   List<TextInputFormatter> get phoneFormatters => [
-        FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(_digitLengths.max),
-      ];
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(_digitLengths.max),
+  ];
 
   // ── Validation ──────────────────────────────────────────────────────────────
 
   /// Validates that the digit count falls within the expected range for the
   /// currently selected country. Returns an error string or null.
-  String?validatePhone(String? value) {
+  String? validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'validation_phone_required'.tr;
     }
@@ -188,10 +186,18 @@ class LoginController extends GetxController {
       final number = phoneController.text.trim();
       final fullPhone = '$dialCode$number';
       final password = passwordController.text;
+      String? deviceToken;
+      try {
+        final firebase = FirebaseService.to;
+        deviceToken = firebase.token ?? await firebase.refreshToken();
+      } catch (error) {
+        debugPrint('[Login] FCM token unavailable: $error');
+      }
 
       final response = await _apiRepo.loginWithPhoneApi(
         phone: fullPhone,
         password: password,
+        fcmToken: deviceToken,
       );
 
       final data = response.data as Map<String, dynamic>;
@@ -202,57 +208,11 @@ class LoginController extends GetxController {
         technicianId: data['data']?['user']['_id']?.toString(),
       );
 
-      // Register the FCM/APNs token with the backend after a successful login.
-      // await _registerDeviceToken();
-
       _navigateAfterLogin(userData);
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'login_failed'.tr);
     } finally {
       isLoading.value = false;
-    }
-  }
-
-  // ── FCM Token Registration ──────────────────────────────────────────────────
-
-  /// Sends the device FCM/APNs token to the backend so the server can send
-  /// push notifications to this device. Silently swallows errors so that a
-  /// token upload failure never blocks login flow.
-  Future<void> _registerDeviceToken() async {
-    try {
-      final firebase = FirebaseService.to;
-
-      // If token not yet available (rare on first launch), try a fresh fetch.
-      String? deviceToken = firebase.token;
-      if (deviceToken == null || deviceToken.isEmpty) {
-        deviceToken = await firebase.refreshToken();
-      }
-
-      if (deviceToken == null || deviceToken.isEmpty) {
-        debugPrint('[Login] No FCM token available — skipping upload.');
-        return;
-      }
-
-      final platform = Platform.isIOS ? 'ios' : 'android';
-      await _apiRepo.updateFcmTokenApi(token: deviceToken, platform: platform);
-      debugPrint('[Login] FCM token sent to server ($platform).');
-
-      // Wire up future token refreshes so they are automatically re-sent
-      // to the backend without requiring another login.
-      firebase.onTokenUpdated = (newToken) async {
-        try {
-          await _apiRepo.updateFcmTokenApi(
-            token: newToken,
-            platform: Platform.isIOS ? 'ios' : 'android',
-          );
-          debugPrint('[FCM] Refreshed token sent to server.');
-        } catch (e) {
-          debugPrint('[FCM] Failed to send refreshed token: $e');
-        }
-      };
-    } catch (e) {
-      // Never block login because of a token registration failure.
-      debugPrint('[Login] FCM token registration failed (non-fatal): $e');
     }
   }
 
@@ -327,7 +287,9 @@ class LoginController extends GetxController {
       isGoogleLoading.value = false;
     }
   }
-  void navigateToForgotPassword() => Get.toNamed(AppRoutes.forgotPasswordScreen);
+
+  void navigateToForgotPassword() =>
+      Get.toNamed(AppRoutes.forgotPasswordScreen);
   void navigateToSignUp() => Get.toNamed(AppRoutes.signUpScreen);
 
   @override

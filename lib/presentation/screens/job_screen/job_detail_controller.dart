@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:technicianapp/core/services/location_sharing_service.dart';
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
@@ -24,11 +25,15 @@ class JobDetailController extends GetxController {
   Jobs? get job => _job.value;
   var technicianId;
   bool isRequestedByMe = false;
+  Worker? _positionWorker;
 
   @override
   void onInit() {
     technicianId = AuthService.to.user.value?.user?.id;
     super.onInit();
+    _positionWorker = ever(LocationSharingService.to.position, (_) {
+      _calculateDistance(_job.value?.coordinates);
+    });
     fetchJobDetail();
   }
 
@@ -63,18 +68,30 @@ class JobDetailController extends GetxController {
     if (coordinate?.lat == null || coordinate?.lng == null) return;
     try {
       final loc = LocationService.to;
-      if (loc.latitude.value == 0.0 && loc.longitude.value == 0.0) return;
+      final live = LocationSharingService.to.position.value;
+      final fresh =
+          live != null && LocationSharingService.isUsable(live, DateTime.now());
+      if (!fresh && loc.latitude.value == 0.0 && loc.longitude.value == 0.0)
+        return;
       final meters = Geolocator.distanceBetween(
-        loc.latitude.value,
-        loc.longitude.value,
+        fresh ? live.latitude : loc.latitude.value,
+        fresh ? live.longitude : loc.longitude.value,
         coordinate!.lat!,
         coordinate.lng!,
       );
+      print('-=-=-=>> ${meters}');
+
       final km = meters / 1000;
       distanceKm.value = km >= 1
           ? '${km.toStringAsFixed(1)} km'
           : '${meters.toStringAsFixed(0)} m';
     } catch (_) {}
+  }
+
+  @override
+  void onClose() {
+    _positionWorker?.dispose();
+    super.onClose();
   }
 
   String formatTime(String? raw) {
@@ -97,8 +114,18 @@ class JobDetailController extends GetxController {
     try {
       final dt = DateTime.parse(raw).toLocal();
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       final month = months[dt.month - 1];
       final day = dt.day;

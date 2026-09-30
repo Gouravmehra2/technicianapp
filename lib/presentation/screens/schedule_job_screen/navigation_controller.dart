@@ -1,27 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
-import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/utils/route_progress.dart';
 import 'package:technicianapp/core/services/location_sharing_service.dart';
-import 'package:technicianapp/core/services/socket_service.dart';
 import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
 
-// ── Replace with your actual Directions API key ──────────────────────────────
-const _kDirectionsApiKey = 'AIzaSyBvRTUGcm2AFmUDu-Z_iDqA_DKR9vHEFqQ';
-
-// How far off-route (metres) before we re-fetch from Directions API
-const _kOffRouteThresholdMetres = 50.0;
-
-// Minimum metres moved before we consider re-fetching the full route
-const _kRefetchMinDistanceMetres = 100.0;
+// Minimum metres device must move before the traveled trail is redrawn.
+const _kTraveledRedrawThresholdMetres = 8.0;
 
 class NavigationController extends GetxController {
   // ── Job ──────────────────────────────────────────────────────────────────────
@@ -29,451 +20,321 @@ class NavigationController extends GetxController {
 
   // ── State ────────────────────────────────────────────────────────────────────
   final currentPosition = Rxn<LatLng>();
-  final distanceKm = 0.0.obs;
-  final etaMinutes = 0.obs;
-  final hasReached = false.obs;
-  final isMapReady = false.obs;
-  final isNavigating = false.obs;
-  final isLoadingRoute = false.obs;
+  final distanceKm      = 0.0.obs;
+  final etaMinutes      = 0.obs;
+  final hasReached      = false.obs;
+  final isMapReady      = false.obs;
+  final isNavigating    = false.obs;
+  final isLoadingRoute  = false.obs;
 
-  // ── Turn-by-turn instruction shown in the banner ─────────────────────────────
-  final currentInstruction = ''.obs;
-  final nextInstruction = ''.obs;
+  /// True during the one-time startup route fetch (autoStart / resume path).
+  final isResuming = false.obs;
 
-  // ── Current bearing for map rotation ─────────────────────────────────────────
+  // ── Bearing for camera rotation ───────────────────────────────────────────────
   final currentBearing = 0.0.obs;
 
   // ── Map ──────────────────────────────────────────────────────────────────────
   GoogleMapController? _mapController;
-  final markers = <Marker>{}.obs;
+  final markers   = <Marker>{}.obs;
   final polylines = <Polyline>{}.obs;
 
   // ── Location stream ──────────────────────────────────────────────────────────
   StreamSubscription<Position>? _locationSub;
 
-  // ── Full decoded route points (used for trimming + off-route detection) ───────
-  List<LatLng> _routePoints = [];
+  // ── Route — fetched ONCE on navigation start, never again ────────────────────
+  List<LatLng> _routePoints        = [];
+  double?      _routeSecondsPerMetre;
 
-  // ── Traveled path — breadcrumb trail of positions visited ────────────────────
-  final List<LatLng> _traveledPoints = [];
+  // ── Traveled breadcrumb trail ─────────────────────────────────────────────────
+  final List<LatLng> _traveledPoints     = [];
+  LatLng?            _lastTraveledRedraw;
 
-  // ── Step-level instructions from Directions API ───────────────────────────────
-  final List<_RouteStep> _steps = [];
-
-  // ── Route re-fetch throttle ───────────────────────────────────────────────────
-  LatLng? _lastRouteFetchOrigin;
-  bool _isFetchingRoute = false;
-
-  // ── Socket throttle + dedup ───────────────────────────────────────────────────
-  DateTime _lastSocketEmit = DateTime.fromMillisecondsSinceEpoch(0);
-  static const _socketInterval = Duration(seconds: 5);
-  double? _lastEmittedLat;
-  double? _lastEmittedLng;
+  final isApproximateDistance = true.obs;
+  bool _starting = false;
+  bool _closed   = false;
+  Worker? _trackingErrorWorker;
 
   // ── Destination ──────────────────────────────────────────────────────────────
-  LatLng? get _dest =>
-      job.lat != null && job.lng != null ? LatLng(job.lat!, job.lng!) : null;
+  LatLng? get _dest => job.lat != null && job.lng != null
+      ? LatLng(job.lat!, job.lng!)
+      : null;
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // LIFECYCLE
+  // ─────────────────────────────────────────────────────────────────────────────
 
   @override
   void onInit() {
     super.onInit();
     job = Get.arguments as ScheduledJobModel;
     _addDestinationMarker();
-    // If the technician was already on the way (API status = 'on_the_way'),
-    // skip the preview state and go straight into live navigation.
-    final resumeNavigation = job.status == JobStatus.onTheWay;
-    _initPreview(autoStart: resumeNavigation);
+    _trackingErrorWorker = ever(LocationSharingService.to.error, (msg) {
+      if (msg != null && isNavigating.value) {
+        AppSnackbar.error(msg, title: 'Tracking');
+      }
+    });
+    final resume = job.status == JobStatus.onTheWay;
+    _initPreview(autoStart: resume);
+  }
+
+  @override
+  void onClose() {
+    _closed = true;
+    _trackingErrorWorker?.dispose();
+    _locationSub?.cancel();
+    _traveledPoints.clear();
+    _lastTraveledRedraw = null;
+    _mapController?.dispose();
+    super.onClose();
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // INIT — one-shot position for preview + initial route draw
+  // INIT — get position, fetch route ONCE, optionally auto-start tracking
   // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> _initPreview({bool autoStart = false}) async {
+    if (autoStart) isResuming.value = true;
     try {
+      await LocationSharingService.to.ensurePermission();
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
+      if (_closed) return;
       final latLng = LatLng(pos.latitude, pos.longitude);
       currentPosition.value = latLng;
       _updateMyMarker(latLng);
-      await _fetchAndDrawRoute(latLng);
 
-      // Auto-resume live navigation without calling the start-navigation API
-      // again (the server already knows the job is on_the_way).
-      if (autoStart) {
-        isNavigating.value = true;
-        final jobId = job.rawJobId;
-        try {
-          if (jobId != null && jobId.isNotEmpty) {
-            await LocationSharingService.to.startForJobs([jobId]);
-          }
-          LocationSharingService.to.pause();
-        } catch (_) {}
-        _startLocationStream();
-        _animateCameraToNavigation(latLng, 0);
-      }
-    } catch (_) {}
+      // ── Route fetched ONCE here ──────────────────────────────────────────
+      await _fetchRouteOnce(latLng);
+
+      if (autoStart && !_closed) await _beginTracking();
+    } catch (e) {
+      if (!_closed) AppSnackbar.error(e.toString(), title: 'Location');
+    } finally {
+      if (autoStart) isResuming.value = false;
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // START NAVIGATION — begin live stream
+  // START NAVIGATION (user taps the button)
   // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> startNavigation() async {
-    final jobId = job.rawJobId;
-
-    // ── PATCH /api/technician/jobs/:jobId/start-navigation ────────────────────
-    // Fire before we flip the UI state; non-blocking on failure so the
-    // technician can still navigate even if the server is temporarily unreachable.
-    if (jobId != null && jobId.isNotEmpty) {
-      await Get.find<ApiRepo>().startNavigationApi(jobId);
-    }
-
-    isNavigating.value = true;
-
-    // Scope location sharing to this single job, then immediately pause the
-    // background service so our own live stream below is the sole emitter.
+    if (_starting || isNavigating.value || _closed) return;
+    _starting = true;
     try {
-      if (jobId != null && jobId.isNotEmpty) {
-        await LocationSharingService.to.startForJobs([jobId]);
+      final id = job.rawJobId;
+      if (id == null || id.isEmpty || _dest == null) {
+        throw StateError('Job destination is missing.');
       }
-      LocationSharingService.to.pause();
-    } catch (_) {}
-
-    _startLocationStream();
-    if (currentPosition.value != null) {
-      _fitBothPoints(currentPosition.value!, _dest ?? currentPosition.value!);
+      await LocationSharingService.to.ensurePermission();
+      await Get.find<ApiRepo>().startNavigationApi(id);
+      if (!_closed) await _beginTracking();
+    } catch (e) {
+      if (!_closed) {
+        AppSnackbar.error(e.toString(), title: 'Unable to start navigation');
+      }
+    } finally {
+      _starting = false;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // LOCATION STREAM
-  // ─────────────────────────────────────────────────────────────────────────────
+  Future<void> _beginTracking() async {
+    final id = job.rawJobId;
+    if (id == null || id.isEmpty) throw StateError('Job ID missing.');
+    _startLocationStream();
+    await LocationSharingService.to.startForJobs([id]);
+    if (_closed) return;
+    isNavigating.value = true;
+    // Seed the UI with the latest known fix
+    final latest = LocationSharingService.to.position.value;
+    if (latest != null) _onPosition(latest);
+  }
 
   void _startLocationStream() {
-    const settings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // only fire when moved ≥ 10 m
-    );
-    _locationSub = Geolocator.getPositionStream(locationSettings: settings)
-        .listen(_onPosition, onError: (_) {});
+    _locationSub?.cancel();
+    _locationSub = LocationSharingService.to.positions.listen(_onPosition);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GPS POSITION UPDATE
+  // Every new fix → move marker + camera + update breadcrumb + recalc ETA.
+  // NO network calls are made here. Route was already fetched once on start.
+  // ─────────────────────────────────────────────────────────────────────────────
+
   void _onPosition(Position pos) {
-    if (hasReached.value) return;
+    if (hasReached.value || _closed) return;
 
     final latLng = LatLng(pos.latitude, pos.longitude);
     currentPosition.value = latLng;
-    currentBearing.value = pos.heading;
-
-    // Append to traveled trail — shown as a grey breadcrumb behind the technician.
-    _traveledPoints.add(latLng);
-    _updateTraveledTrail();
+    currentBearing.value  = pos.heading;
 
     _updateMyMarker(latLng);
-    _maybeSendSocket(pos);
-    _updateRouteAndInstructions(latLng, pos.heading);
     _animateCameraToNavigation(latLng, pos.heading);
+    _appendTraveledPoint(latLng);
+    _recalcEtaLocally(latLng);
   }
 
-  /// Redraws the gray "path already traveled" polyline.
-  void _updateTraveledTrail() {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // LOCAL ETA RECALC — pure in-memory, zero network calls
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  void _recalcEtaLocally(LatLng from) {
+    if (_routePoints.isEmpty) {
+      final dest = _dest;
+      if (dest != null) distanceKm.value = _haversine(from, dest) / 1000;
+      return;
+    }
+    final progress = RouteProgress.calculate(from, _routePoints);
+    if (progress == null) return;
+    distanceKm.value = progress.remainingMetres / 1000;
+    final spm = _routeSecondsPerMetre;
+    etaMinutes.value =
+        spm == null ? 0 : (progress.remainingMetres * spm / 60).ceil();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ONE-TIME ROUTE FETCH — POST /api/routes/directions
+  // Called exactly once per navigation session (on init). Never called again.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  Future<void> _fetchRouteOnce(LatLng origin) async {
+    final dest = _dest;
+    if (dest == null || _closed) return;
+
+    isLoadingRoute.value = true;
+    try {
+      final result = await Get.find<ApiRepo>().getDirectionsApi(
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destLat: dest.latitude,
+        destLng: dest.longitude,
+      );
+
+      if (_closed || hasReached.value) return;
+
+      if (!result.success || result.data == null) {
+        _drawFallbackLine(origin);
+        return;
+      }
+
+      final data      = result.data!;
+      distanceKm.value  = data.distanceKm;
+      etaMinutes.value  = data.durationMinutes;
+
+      final allPoints = _decodePolyline(data.encodedPolyline);
+      if (allPoints.isEmpty) {
+        _drawFallbackLine(origin);
+        return;
+      }
+
+      // Keep full points for local ETA recalc; draw a simplified version.
+      _routePoints          = allPoints;
+      isApproximateDistance.value = false;
+      _routeSecondsPerMetre = data.distanceKm > 0
+          ? data.durationMinutes * 60 / (data.distanceKm * 1000)
+          : null;
+
+      _setRoutePolyline(
+        PolylineSimplifier.simplify(allPoints, kMaxRoutePoints),
+      );
+    } catch (_) {
+      _drawFallbackLine(origin);
+    } finally {
+      isLoadingRoute.value = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TRAVELED BREADCRUMB TRAIL
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  void _appendTraveledPoint(LatLng latLng) {
+    final last = _lastTraveledRedraw;
+    if (last != null) {
+      final moved = Geolocator.distanceBetween(
+        last.latitude, last.longitude,
+        latLng.latitude, latLng.longitude,
+      );
+      if (moved < _kTraveledRedrawThresholdMetres) return;
+    }
+
+    _traveledPoints.add(latLng);
+    // Pre-cap raw buffer before simplification
+    if (_traveledPoints.length > kMaxTraveledPoints * 3) {
+      _traveledPoints.removeAt(0);
+    }
+
+    _lastTraveledRedraw = latLng;
+    _redrawTraveledTrail();
+  }
+
+  void _redrawTraveledTrail() {
     if (_traveledPoints.length < 2) return;
-    // Re-assign so the Obx in the UI picks up the change.
-    final current = polylines.toList();
-    // Remove old trail layers before re-adding.
-    current.removeWhere(
-      (p) => p.polylineId.value == 'traveled' || p.polylineId.value == 'traveled_border',
+
+    final simplified = PolylineSimplifier.simplify(
+      _traveledPoints, kMaxTraveledPoints,
+    );
+
+    // Preserve the route polyline; replace only the traveled polyline
+    final route = polylines.toList().firstWhereOrNull(
+      (p) => p.polylineId.value == 'route',
+    );
+
+    polylines.assignAll([
+      Polyline(
+        polylineId: const PolylineId('traveled'),
+        points: simplified,
+        color: const Color(0xFFBDBDBD),
+        width: 6,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+        jointType: JointType.round,
+      ),
+      if (route != null) route,
+    ]);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // POLYLINE HELPERS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  void _setRoutePolyline(List<LatLng> points) {
+    if (_closed) return;
+    final traveled = polylines.toList().firstWhereOrNull(
+      (p) => p.polylineId.value == 'traveled',
     );
     polylines.assignAll([
-      // ── Traveled border (slightly darker grey, wider) ────────────────────
+      if (traveled != null) traveled,
       Polyline(
-        polylineId: const PolylineId('traveled_border'),
-        points: List<LatLng>.from(_traveledPoints),
-        color: const Color(0xFF757575),
+        polylineId: const PolylineId('route'),
+        points: points,
+        color: const Color(0xFF4A6CF7),
         width: 8,
         startCap: Cap.roundCap,
         endCap: Cap.roundCap,
         jointType: JointType.round,
       ),
-      // ── Traveled fill (light grey on top) ───────────────────────────────
-      Polyline(
-        polylineId: const PolylineId('traveled'),
-        points: List<LatLng>.from(_traveledPoints),
-        color: const Color(0xFFBDBDBD),
-        width: 5,
-        startCap: Cap.roundCap,
-        endCap: Cap.roundCap,
-        jointType: JointType.round,
-      ),
-      ...current,
     ]);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // REAL-TIME ROUTE UPDATE
-  // Two strategies:
-  //   1. Still on route  → trim the polyline to start from nearest point,
-  //      update distance/ETA from remaining points + current step instruction.
-  //   2. Off route (>50 m from any polyline point) → re-fetch full route.
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  void _updateRouteAndInstructions(LatLng from, double heading) {
-    if (_routePoints.isEmpty) {
-      // No route yet — fetch one.
-      _fetchAndDrawRoute(from);
-      return;
-    }
-
-    // Find the nearest point index on the current route.
-    int nearestIdx = 0;
-    double nearestDist = double.infinity;
-    for (int i = 0; i < _routePoints.length; i++) {
-      final d = _distanceMetres(from, _routePoints[i]);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearestIdx = i;
-      }
-    }
-
-    // ── Off-route check ───────────────────────────────────────────────────────
-    if (nearestDist > _kOffRouteThresholdMetres && !_isFetchingRoute) {
-      // Technician has left the road — re-fetch.
-      _fetchAndDrawRoute(from);
-      return;
-    }
-
-    // ── Trim polyline to remaining points ─────────────────────────────────────
-    final remaining = _routePoints.sublist(nearestIdx);
-    if (remaining.length >= 2) {
-      polylines.assignAll([
-        // ── Traveled trail layers (drawn first so route renders on top) ──────
-        if (_traveledPoints.length >= 2) ...[
-          Polyline(
-            polylineId: const PolylineId('traveled_border'),
-            points: List<LatLng>.from(_traveledPoints),
-            color: const Color(0xFF757575),
-            width: 8,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            jointType: JointType.round,
-          ),
-          Polyline(
-            polylineId: const PolylineId('traveled'),
-            points: List<LatLng>.from(_traveledPoints),
-            color: const Color(0xFFBDBDBD),
-            width: 5,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            jointType: JointType.round,
-          ),
-        ],
-        // ── Remaining route border / shadow layer (dark blue, thicker) ──────
-        Polyline(
-          polylineId: const PolylineId('route_border'),
-          points: remaining,
-          color: const Color(0xFF1A3A8F),
-          width: 10,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-        ),
-        // ── Remaining route fill layer (bright blue-purple, thinner on top) ─
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: remaining,
-          color: const Color(0xFF4A6CF7),
-          width: 7,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-        ),
-      ]);
-    }
-
-    // ── Update distance remaining ─────────────────────────────────────────────
-    double totalMetres = 0;
-    for (int i = 0; i < remaining.length - 1; i++) {
-      totalMetres += _distanceMetres(remaining[i], remaining[i + 1]);
-    }
-    distanceKm.value = totalMetres / 1000;
-
-    // ── Update current turn instruction ───────────────────────────────────────
-    _updateCurrentStep(from);
-
-    // ── Proactively re-fetch when moved > 100 m from last fetch origin ─────────
-    if (_lastRouteFetchOrigin != null &&
-        _distanceMetres(from, _lastRouteFetchOrigin!) >
-            _kRefetchMinDistanceMetres &&
-        !_isFetchingRoute) {
-      _fetchAndDrawRoute(from);
-    }
-  }
-
-  void _updateCurrentStep(LatLng from) {
-    if (_steps.isEmpty) return;
-
-    // Find the step whose end point is nearest ahead of us.
-    _RouteStep? active;
-    double closestDist = double.infinity;
-    for (final step in _steps) {
-      final d = _distanceMetres(from, step.endLocation);
-      if (d < closestDist) {
-        closestDist = d;
-        active = step;
-      }
-    }
-
-    if (active != null) {
-      currentInstruction.value = _stripHtml(active.htmlInstruction);
-      // ETA from this step's remaining duration (rough)
-      etaMinutes.value = active.durationSeconds ~/ 60;
-
-      // Next step
-      final idx = _steps.indexOf(active);
-      if (idx + 1 < _steps.length) {
-        nextInstruction.value =
-            'Then: ${_stripHtml(_steps[idx + 1].htmlInstruction)}';
-      } else {
-        nextInstruction.value = 'Arrive at destination';
-      }
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // GOOGLE DIRECTIONS API — fetches road-snapped route + step instructions
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  Future<void> _fetchAndDrawRoute(LatLng origin) async {
-    final dest = _dest;
-    if (dest == null || _isFetchingRoute) return;
-
-    _isFetchingRoute = true;
-    isLoadingRoute.value = true;
-    try {
-      final url = Uri.parse(
-        'https://maps.googleapis.com/maps/api/directions/json'
-        '?origin=${origin.latitude},${origin.longitude}'
-        '&destination=${dest.latitude},${dest.longitude}'
-        '&mode=driving'
-        '&key=$_kDirectionsApiKey',
-      );
-
-      final response =
-          await http.get(url).timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return;
-
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      if (data['status'] != 'OK') return;
-
-      final routes = data['routes'] as List<dynamic>;
-      if (routes.isEmpty) return;
-
-      final leg = routes[0]['legs'][0] as Map<String, dynamic>;
-
-      // Distance + ETA from API (accurate road values).
-      distanceKm.value =
-          (leg['distance']['value'] as num).toDouble() / 1000;
-      etaMinutes.value =
-          ((leg['duration']['value'] as num).toInt() / 60).ceil();
-
-      // Decode steps for turn-by-turn instructions.
-      final steps = leg['steps'] as List<dynamic>;
-      _steps.clear();
-      final allPoints = <LatLng>[];
-
-      for (final step in steps) {
-        final encoded = step['polyline']['points'] as String;
-        final pts = _decodePolyline(encoded);
-        allPoints.addAll(pts);
-
-        _steps.add(_RouteStep(
-          htmlInstruction: step['html_instructions'] as String? ?? '',
-          durationSeconds:
-              (step['duration']['value'] as num?)?.toInt() ?? 0,
-          endLocation: LatLng(
-            (step['end_location']['lat'] as num).toDouble(),
-            (step['end_location']['lng'] as num).toDouble(),
-          ),
-        ));
-      }
-
-      _routePoints = allPoints;
-      _lastRouteFetchOrigin = origin;
-
-      // Update instruction banner immediately after fetch.
-      _updateCurrentStep(origin);
-
-      polylines.assignAll([
-        // ── Traveled trail layers (drawn first so route renders on top) ──────
-        if (_traveledPoints.length >= 2) ...[
-          Polyline(
-            polylineId: const PolylineId('traveled_border'),
-            points: List<LatLng>.from(_traveledPoints),
-            color: const Color(0xFF757575),
-            width: 8,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            jointType: JointType.round,
-          ),
-          Polyline(
-            polylineId: const PolylineId('traveled'),
-            points: List<LatLng>.from(_traveledPoints),
-            color: const Color(0xFFBDBDBD),
-            width: 5,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            jointType: JointType.round,
-          ),
-        ],
-        // ── Route border / shadow layer ──────────────────────────────────────
-        Polyline(
-          polylineId: const PolylineId('route_border'),
-          points: allPoints,
-          color: const Color(0xFF1A3A8F),
-          width: 10,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-        ),
-        // ── Route fill layer ─────────────────────────────────────────────────
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: allPoints,
-          color: const Color(0xFF4A6CF7),
-          width: 7,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-        ),
-      ]);
-    } catch (_) {
-      _drawFallbackLine(origin);
-    } finally {
-      isLoadingRoute.value = false;
-      _isFetchingRoute = false;
-    }
   }
 
   void _drawFallbackLine(LatLng from) {
     final dest = _dest;
-    if (dest == null) return;
-    _routePoints = [from, dest];
+    if (dest == null || _closed) return;
+    _routePoints          = [];
+    _routeSecondsPerMetre = null;
+    isApproximateDistance.value = true;
+    distanceKm.value = _haversine(from, dest) / 1000;
+    etaMinutes.value = 0;
     polylines.assignAll([
-      // Fallback uses a single dashed line — no border layer needed
-      Polyline(
-        polylineId: const PolylineId('route_border'),
-        points: [from, dest],
-        color: const Color(0xFF1A3A8F),
-        width: 10,
-        patterns: [PatternItem.dash(20), PatternItem.gap(8)],
-      ),
       Polyline(
         polylineId: const PolylineId('route'),
         points: [from, dest],
         color: const Color(0xFF4A6CF7),
-        width: 7,
+        width: 8,
         patterns: [PatternItem.dash(20), PatternItem.gap(8)],
       ),
     ]);
@@ -485,8 +346,7 @@ class NavigationController extends GetxController {
 
   List<LatLng> _decodePolyline(String encoded) {
     final List<LatLng> points = [];
-    int index = 0;
-    int lat = 0, lng = 0;
+    int index = 0, lat = 0, lng = 0;
     while (index < encoded.length) {
       int shift = 0, result = 0, b;
       do {
@@ -494,17 +354,14 @@ class NavigationController extends GetxController {
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      final dLat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-      lat += dLat;
-      shift = 0;
-      result = 0;
+      lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
       do {
         b = encoded.codeUnitAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      final dLng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-      lng += dLng;
+      lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
       points.add(LatLng(lat / 1e5, lng / 1e5));
     }
     return points;
@@ -536,90 +393,49 @@ class NavigationController extends GetxController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // SOCKET
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  void _maybeSendSocket(Position pos) {
-    final now = DateTime.now();
-    if (now.difference(_lastSocketEmit) < _socketInterval) return;
-
-    if (_lastEmittedLat == pos.latitude && _lastEmittedLng == pos.longitude) {
-      return; // same coordinate — skip
-    }
-
-    _lastSocketEmit = now;
-    _lastEmittedLat = pos.latitude;
-    _lastEmittedLng = pos.longitude;
-
-    final jobId = job.rawJobId;
-    final techId = _technicianId;
-    if (jobId == null || techId == null) return;
-
-    SocketService.instance.emit('technician:location', {
-      'jobId': jobId,
-      'technicianId': techId,
-      'lat': pos.latitude,
-      'lng': pos.longitude,
-    });
-  }
-
-  String? get _technicianId {
-    try {
-      return AuthService.to.user.value?.user?.id;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
   // CAMERA
   // ─────────────────────────────────────────────────────────────────────────────
 
   void onMapCreated(GoogleMapController c) {
     _mapController = c;
     isMapReady.value = true;
-    final cur = currentPosition.value;
+    final cur  = currentPosition.value;
     final dest = _dest;
     if (cur != null && dest != null) {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        _fitBothPoints(cur, dest);
-      });
+      Future.delayed(
+        const Duration(milliseconds: 300),
+        () => _fitBothPoints(cur, dest),
+      );
     } else if (dest != null) {
       _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: dest, zoom: 14),
-        ),
+        CameraUpdate.newCameraPosition(CameraPosition(target: dest, zoom: 14)),
       );
     }
   }
 
-  /// During navigation: follow technician at zoom 17, tilt 50°, bearing = heading.
   void _animateCameraToNavigation(LatLng pos, double bearing) {
     _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: pos,
-          zoom: 17,
-          tilt: 50,
-          bearing: bearing,
-        ),
+        CameraPosition(target: pos, zoom: 17, tilt: 50, bearing: bearing),
       ),
     );
   }
 
   void _fitBothPoints(LatLng a, LatLng b) {
-    final bounds = LatLngBounds(
-      southwest: LatLng(
-        min(a.latitude, b.latitude),
-        min(a.longitude, b.longitude),
-      ),
-      northeast: LatLng(
-        max(a.latitude, b.latitude),
-        max(a.longitude, b.longitude),
-      ),
-    );
     _mapController?.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 80),
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(
+            min(a.latitude, b.latitude),
+            min(a.longitude, b.longitude),
+          ),
+          northeast: LatLng(
+            max(a.latitude, b.latitude),
+            max(a.longitude, b.longitude),
+          ),
+        ),
+        80,
+      ),
     );
   }
 
@@ -644,7 +460,11 @@ class NavigationController extends GetxController {
 
   Future<void> markReached() async {
     final jobId = job.rawJobId;
-    final pos = currentPosition.value;
+    final fix   = LocationSharingService.to.position.value;
+    final pos   = fix != null &&
+            LocationSharingService.isUsable(fix, DateTime.now())
+        ? LatLng(fix.latitude, fix.longitude)
+        : null;
 
     if (jobId == null || pos == null) {
       AppSnackbar.error('Location not available yet.', title: 'Error');
@@ -659,38 +479,26 @@ class NavigationController extends GetxController {
       );
 
       if (result.success) {
-        hasReached.value = true;
+        hasReached.value  = true;
+        isNavigating.value = false;
 
-        // ── Stop live location stream ────────────────────────────────────────
         _locationSub?.cancel();
         _locationSub = null;
-
-        // ── Clear traveled trail ─────────────────────────────────────────────
         _traveledPoints.clear();
+        _lastTraveledRedraw = null;
 
-        // ── Stop socket location emission from background service too ────────
-        try {
-          LocationSharingService.to.stop();
-        } catch (_) {}
-
-        // ── No socket reached event — API response is the source of truth ────
-        // (removed technician:reached socket emit per new flow)
+        try { await LocationSharingService.to.stopForJob(jobId); } catch (_) {}
 
         AppSnackbar.success(
           result.message ?? 'You have reached the location.',
           title: 'Reached',
         );
 
-        // ── Reset & start the elapsed timer on the job detail screen ─────────
         try {
           Get.find<ScheduleJobController>().resetAndStartElapsedTimer();
         } catch (_) {}
 
-        // ── Navigate to ScheduleJobDetailScreen (replace navigation screen) ──
-        Get.offNamed(
-          AppRoutes.scheduleJobDetailScreen,
-          arguments: job,
-        );
+        Get.offNamed(AppRoutes.scheduleJobDetailScreen, arguments: job);
       } else {
         AppSnackbar.error(
           result.message ?? 'Failed to mark reached.',
@@ -708,68 +516,33 @@ class NavigationController extends GetxController {
 
   String get distanceText {
     final d = distanceKm.value;
-    if (d < 1) return '${(d * 1000).toStringAsFixed(0)} m';
-    return '${d.toStringAsFixed(1)} km';
+    if (currentPosition.value == null) return '--';
+    final prefix = isApproximateDistance.value ? '≈ ' : '';
+    return d < 1
+        ? '$prefix${(d * 1000).toStringAsFixed(0)} m'
+        : '$prefix${d.toStringAsFixed(1)} km';
   }
 
   String get etaText {
     final m = etaMinutes.value;
     if (m == 0) return '--';
-    if (m < 60) return '$m min';
-    return '${m ~/ 60}h ${m % 60}m';
+    return m < 60 ? '$m min' : '${m ~/ 60}h ${m % 60}m';
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // UTILITIES
   // ─────────────────────────────────────────────────────────────────────────────
 
-  /// Haversine distance in metres between two LatLng points.
-  double _distanceMetres(LatLng a, LatLng b) {
-    const R = 6371000.0; // Earth radius in metres
-    final lat1 = a.latitude * pi / 180;
-    final lat2 = b.latitude * pi / 180;
-    final dLat = (b.latitude - a.latitude) * pi / 180;
+  double _haversine(LatLng a, LatLng b) {
+    const R    = 6371000.0;
+    final lat1 = a.latitude  * pi / 180;
+    final lat2 = b.latitude  * pi / 180;
+    final dLat = (b.latitude  - a.latitude)  * pi / 180;
     final dLng = (b.longitude - a.longitude) * pi / 180;
-    final sinDLat = sin(dLat / 2);
-    final sinDLng = sin(dLng / 2);
-    final c =
-        2 * asin(sqrt(sinDLat * sinDLat + cos(lat1) * cos(lat2) * sinDLng * sinDLng));
-    return R * c;
-  }
-
-  /// Strip HTML tags from Directions API instruction strings.
-  String _stripHtml(String html) {
-    return html
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  @override
-  void onClose() {
-    _locationSub?.cancel();
-    _traveledPoints.clear();
-    _mapController?.dispose();
-    // Stop background location sharing entirely — it was scoped to this one
-    // job and is no longer needed once the navigation screen closes.
-    try {
-      LocationSharingService.to.stop();
-    } catch (_) {}
-    super.onClose();
+    final sinLat = sin(dLat / 2);
+    final sinLng = sin(dLng / 2);
+    return R * 2 * asin(sqrt(
+      sinLat * sinLat + cos(lat1) * cos(lat2) * sinLng * sinLng,
+    ));
   }
 }
-
-// ─── Step model ───────────────────────────────────────────────────────────────
-
-class _RouteStep {
-  final String htmlInstruction;
-  final int durationSeconds;
-  final LatLng endLocation;
-
-  const _RouteStep({
-    required this.htmlInstruction,
-    required this.durationSeconds,
-    required this.endLocation,
-  });
-}
-

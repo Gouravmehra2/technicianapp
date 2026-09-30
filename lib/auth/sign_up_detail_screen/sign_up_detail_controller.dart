@@ -9,6 +9,7 @@ import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/constant/common_widgets/common_text_form_field.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
@@ -51,12 +52,11 @@ class SignUpDetailArgs {
   factory SignUpDetailArgs.phone({
     required String dialCode,
     required String verifiedPhone,
-  }) =>
-      SignUpDetailArgs._(
-        mode: OtpVerifyMode.phone,
-        dialCode: dialCode,
-        verifiedPhone: verifiedPhone,
-      );
+  }) => SignUpDetailArgs._(
+    mode: OtpVerifyMode.phone,
+    dialCode: dialCode,
+    verifiedPhone: verifiedPhone,
+  );
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -150,21 +150,22 @@ class SignUpDetailController extends GetxController {
   // ── Validators ────────────────────────────────────────────────────────────
 
   FormFieldValidator<String> get nameValidator => CommonValidators.compose([
-        CommonValidators.required(message: 'Name is required'),
-        CommonValidators.minLength(2,
-            message: 'Name must be at least 2 characters'),
-      ]);
+    CommonValidators.required(message: 'Name is required'),
+    CommonValidators.minLength(
+      2,
+      message: 'Name must be at least 2 characters',
+    ),
+  ]);
 
   FormFieldValidator<String> get emailValidator => CommonValidators.compose([
-        CommonValidators.required(message: 'validation_email_required'.tr),
-        CommonValidators.email(message: 'validation_email'.tr),
-      ]);
+    CommonValidators.required(message: 'validation_email_required'.tr),
+    CommonValidators.email(message: 'validation_email'.tr),
+  ]);
 
   FormFieldValidator<String> get passwordValidator => CommonValidators.compose([
-        CommonValidators.required(message: 'validation_password_required'.tr),
-        CommonValidators.strongPassword(
-            message: 'validation_password_strength'.tr),
-      ]);
+    CommonValidators.required(message: 'validation_password_required'.tr),
+    CommonValidators.strongPassword(message: 'validation_password_strength'.tr),
+  ]);
 
   FormFieldValidator<String> get confirmPasswordValidator =>
       CommonValidators.compose([
@@ -197,11 +198,13 @@ class SignUpDetailController extends GetxController {
       String? profilePhotoUrl;
       final imageFile = profileImage.value;
       if (imageFile != null) {
-        final uploadResponse =
-            await _apiRepo.uploadDocumentsApi(imageFile.path);
+        final uploadResponse = await _apiRepo.uploadDocumentsApi(
+          imageFile.path,
+        );
         final data = uploadResponse.data;
         if (data is Map<String, dynamic>) {
-          profilePhotoUrl = data['profilePhoto']?.toString() ??
+          profilePhotoUrl =
+              data['profilePhoto']?.toString() ??
               data['url']?.toString() ??
               data['path']?.toString();
         }
@@ -226,6 +229,15 @@ class SignUpDetailController extends GetxController {
         'confirmPassword': confirmPasswordController.text,
         'image': profilePhotoUrl,
       };
+      try {
+        final firebase = FirebaseService.to;
+        final deviceToken = firebase.token ?? await firebase.refreshToken();
+        if (deviceToken != null && deviceToken.isNotEmpty) {
+          payload['fcmTokens'] = deviceToken;
+        }
+      } catch (error) {
+        debugPrint('[SignUp] FCM token unavailable: $error');
+      }
 
       final registerResponse = await _apiRepo.registerApi(payload);
 
@@ -234,7 +246,8 @@ class SignUpDetailController extends GetxController {
       final responseData = registerResponse.data;
       String? technicianId;
       if (responseData is Map<String, dynamic>) {
-        final token = responseData['token']?.toString() ??
+        final token =
+            responseData['token']?.toString() ??
             responseData['accessToken']?.toString() ??
             responseData['data']?['token']?.toString();
         if (token != null && token.isNotEmpty) {
@@ -243,7 +256,8 @@ class SignUpDetailController extends GetxController {
         }
 
         // Extract technician _id for socket room subscription
-        technicianId = responseData['_id']?.toString() ??
+        technicianId =
+            responseData['_id']?.toString() ??
             responseData['id']?.toString() ??
             responseData['data']?['_id']?.toString() ??
             responseData['data']?['id']?.toString();
@@ -252,7 +266,8 @@ class SignUpDetailController extends GetxController {
       AppSnackbar.success('Account created successfully!', title: 'Welcome');
 
       final verificationStatus =
-          (responseData['data']?['user']?['verificationStatus'] as String? ?? '')
+          (responseData['data']?['user']?['verificationStatus'] as String? ??
+                  '')
               .toLowerCase();
 
       if (verificationStatus == 'approved') {
@@ -266,7 +281,6 @@ class SignUpDetailController extends GetxController {
         // Submitted but pending / rejected → Step 4 review
         Get.offAllNamed(AppRoutes.technicianUnderReviewScreen);
       }
-
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Sign Up Failed');
     } finally {

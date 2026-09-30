@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,10 +21,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   handleDeviceOrientation();
   await _registerServices();
-  runApp(
-      const MyApp()
-
-  );
+  runApp(const MyApp());
   // DevicePreview(
   //   enabled: !kReleaseMode,
   //   builder: (context) => const MyApp(),
@@ -36,13 +34,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: (){
+      onTap: () {
         FocusManager.instance.primaryFocus?.unfocus();
       },
       child: GetMaterialApp(
         // builder: DevicePreview.appBuilder,
-        defaultTransition:
-            Platform.isIOS ? Transition.cupertino : Transition.native,
+        defaultTransition: Platform.isIOS
+            ? Transition.cupertino
+            : Transition.native,
         transitionDuration: const Duration(milliseconds: 500),
         getPages: AppPages.getPages,
         initialRoute: AppRoutes.splashScreen,
@@ -70,19 +69,33 @@ Future<void> _registerServices() async {
   Get.put(LocationService(), permanent: true);
   Get.put(LocationManager(), permanent: true);
 
-  // Firebase — initialised before everything else so FCM is ready early.
-  // await Get.putAsync(() => FirebaseService().init(), permanent: true);
-
   // Network layer
   final dioClient = Get.put(DioClient(), permanent: true);
-  Get.put(ApiRepo( dioClient), permanent: true);
+  Get.put(ApiRepo(dioClient), permanent: true);
 
   // Auth — awaited so SplashController can read isLoggedIn synchronously
   await Get.putAsync(() => AuthService().init(), permanent: true);
 
+  final firebase = Get.put(FirebaseService(), permanent: true);
+
   // Socket — initialize early so it's ready when controllers call connectAndJoin
   SocketService.instance.initialize();
+  SocketService.instance.on('notification:new', (payload) {
+    firebase.handleSocketNotification(payload);
+  });
 
   // Location sharing — singleton for active-job GPS tracking
   Get.put(LocationSharingService(), permanent: true);
+
+  // Firebase permission prompts and APNs token polling must not delay the
+  // first Flutter frame.
+  unawaited(_initializeFirebaseNotifications(firebase));
+}
+
+Future<void> _initializeFirebaseNotifications(FirebaseService firebase) async {
+  try {
+    await firebase.init();
+  } catch (error) {
+    debugPrint('[FirebaseService] Startup initialization failed: $error');
+  }
 }

@@ -5,7 +5,6 @@ import 'package:readmore/readmore.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
 import 'package:technicianapp/constant/app_text_style/app_text_style.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
-import 'package:technicianapp/core/services/map_launch_helper.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
 import 'job_detail_controller.dart';
 
@@ -138,15 +137,18 @@ class JobDetailScreen extends GetView<JobDetailController> {
                       const SizedBox(height: 16),
                       _SkillsCard(job: job),
                     ],
-                    // if ((job.tasks ?? []).isNotEmpty) ...[
-                    //   const SizedBox(height: 16),
-                    //   _TasksCard(job: job),
-                    // ],
-                    // if ((job.rescheduleHistory ?? []).isNotEmpty) ...[
-                    //   const SizedBox(height: 16),
-                    //   _RescheduleHistoryCard(job: job),
-                    // ],
-                    // const SizedBox(height: 24),
+                    // Completed: show all tasks with their completion data
+                    if ((_isCompleted(job.status) || _isCheckout(job.status)) &&
+                        (job.tasks ?? []).isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _CompletedTasksSection(job: job),
+                    ],
+                    // Checkout: payment pending banner
+                    if (_isCheckout(job.status)) ...[
+                      const SizedBox(height: 16),
+                      const _CheckoutBanner(),
+                    ],
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -268,13 +270,6 @@ class _JobInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final address = [
-      job.location,
-      job.city,
-      job.state,
-      job.zipCode,
-    ].where((s) => (s ?? '').isNotEmpty).join(', ');
-
     return _DetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,7 +423,7 @@ class _ScheduleCard extends StatelessWidget {
   /// Falls back to scheduledDate / serviceDate if jobDate is absent.
   String _buildTimeRange(JobDetailController ctrl) {
     final from = job.jobDate?.from ?? '';
-    final to   = job.jobDate?.to   ?? '';
+    final to = job.jobDate?.to ?? '';
 
     if (from.isNotEmpty && to.isNotEmpty) {
       return '${ctrl.formatDateTime(from)} – ${ctrl.formatDateTime(to)}';
@@ -449,12 +444,12 @@ class _ScheduleCard extends StatelessWidget {
     }
     // derive from jobDate window
     final from = job.jobDate?.from ?? '';
-    final to   = job.jobDate?.to   ?? '';
+    final to = job.jobDate?.to ?? '';
     if (from.isNotEmpty && to.isNotEmpty) {
       try {
-        final diff = DateTime.parse(to)
-            .difference(DateTime.parse(from))
-            .inMinutes;
+        final diff = DateTime.parse(
+          to,
+        ).difference(DateTime.parse(from)).inMinutes;
         if (diff >= 60) {
           final h = diff ~/ 60;
           final m = diff % 60;
@@ -477,10 +472,10 @@ class _ScheduleCard extends StatelessWidget {
 
     switch ((pay.type ?? '').toLowerCase()) {
       case 'hourly':
-        final rate   = pay.hourlyRate ?? 0;
+        final rate = pay.hourlyRate ?? 0;
         final approx = double.tryParse(pay.approxHours ?? '') ?? 0;
-        final max    = pay.maxHours ?? 0;
-        final hours  = approx > 0 ? approx : max.toDouble();
+        final max = pay.maxHours ?? 0;
+        final hours = approx > 0 ? approx : max.toDouble();
         if (hours > 0 && rate > 0) {
           return 'Est. \$${(rate * hours).toStringAsFixed(0)}';
         }
@@ -490,16 +485,16 @@ class _ScheduleCard extends StatelessWidget {
       case 'perdevice':
       case 'per_device':
       case 'per-device':
-        final rate    = pay.perDeviceRate ?? 0;
+        final rate = pay.perDeviceRate ?? 0;
         final devices = pay.maxDevices ?? 0;
         if (devices > 0 && rate > 0) return 'Est. \$${rate * devices}';
         if (rate > 0) return '\$$rate/device';
         return '';
 
       case 'blended':
-        final fixed    = pay.blendedFixedAmount ?? 0;
+        final fixed = pay.blendedFixedAmount ?? 0;
         final addlRate = pay.blendedHourlyRate ?? 0;
-        final maxAddl  = pay.blendedMaxAddlHours ?? 0;
+        final maxAddl = pay.blendedMaxAddlHours ?? 0;
         if (addlRate > 0 && maxAddl > 0) {
           return 'Est. \$${fixed + addlRate * maxAddl}';
         }
@@ -639,8 +634,6 @@ class _DestinationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasCoords =
-        job.coordinates?.lat != null && job.coordinates?.lng != null;
     final fullAddress = [
       job.location,
       job.city,
@@ -666,56 +659,56 @@ class _DestinationCard extends StatelessWidget {
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w700,
-                        fontSize: _kValueSize + 1,
+                        fontSize: _kValueSize,
                         color: Color(0xFF1A1A1A),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 5),
-              GestureDetector(
-                onTap: hasCoords
-                    ? () => MapLaunchHelper.navigateTo(
-                        lat: job.coordinates!.lat!,
-                        lng: job.coordinates!.lng!,
-                      )
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasCoords
-                        ? AppColor.brownAccentPrimary
-                        : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.navigation_outlined,
-                        size: 15,
-                        color: hasCoords ? Colors.white : AppColor.coolGrayText,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Navigate',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: hasCoords
-                              ? Colors.white
-                              : AppColor.coolGrayText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // const SizedBox(width: 5),
+              // GestureDetector(
+              //   onTap: hasCoords
+              //       ? () => MapLaunchHelper.navigateTo(
+              //     lat: job.coordinates!.lat!,
+              //     lng: job.coordinates!.lng!,
+              //   )
+              //       : null,
+              //   child: Container(
+              //     padding: const EdgeInsets.symmetric(
+              //       horizontal: 16,
+              //       vertical: 10,
+              //     ),
+              //     decoration: BoxDecoration(
+              //       color: hasCoords
+              //           ? AppColor.brownAccentPrimary
+              //           : Colors.grey.shade200,
+              //       borderRadius: BorderRadius.circular(22),
+              //     ),
+              //     child: Row(
+              //       mainAxisSize: MainAxisSize.min,
+              //       children: [
+              //         Icon(
+              //           Icons.navigation_outlined,
+              //           size: 15,
+              //           color: hasCoords ? Colors.white : AppColor.coolGrayText,
+              //         ),
+              //         const SizedBox(width: 5),
+              //         Text(
+              //           'Navigate',
+              //           style: TextStyle(
+              //             fontFamily: 'Inter',
+              //             fontWeight: FontWeight.w700,
+              //             fontSize: 13,
+              //             color: hasCoords
+              //                 ? Colors.white
+              //                 : AppColor.coolGrayText,
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
@@ -1595,11 +1588,16 @@ class _StatusChip extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'active':
         return (bg: const Color(0xFFE8F5E9), fg: Color(0xFF2E7D32));
+      case 'ontheway':
+        return (bg: const Color(0xFFE3F2FD), fg: const Color(0xFF1565C0));
       case 'completed':
         return (bg: const Color(0xFFE3F2FD), fg: Color(0xFF1565C0));
+      case 'checkout':
+        return (bg: const Color(0xFFE8F5E9), fg: Color(0xFF2E7D32));
       case 'cancelled':
         return (bg: const Color(0xFFFFEBEE), fg: Color(0xFFC62828));
       case 'pending':
+      case 'open':
         return (bg: const Color(0xFFFFFDE7), fg: Color(0xFFF57F17));
       default:
         return (bg: const Color(0xFFFFF3E0), fg: AppColor.brownAccentPrimary);
@@ -1616,7 +1614,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        status.toUpperCase(),
+        _isPending(status) ? 'PENDING' : status.toUpperCase(),
         style: TextStyle(
           fontFamily: 'Inter',
           fontWeight: FontWeight.w700,
@@ -1629,6 +1627,18 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+// ─── Status helpers ───────────────────────────────────────────────────────────
+
+bool _isCompleted(String? status) =>
+    (status ?? '').toLowerCase() == 'completed';
+
+bool _isCheckout(String? status) => (status ?? '').toLowerCase() == 'checkout';
+
+bool _isPending(String? status) {
+  final normalized = (status ?? '').toLowerCase();
+  return normalized == 'pending' || normalized == 'open';
+}
+
 // ─── Bottom Actions ───────────────────────────────────────────────────────────
 
 class _BottomActions extends StatelessWidget {
@@ -1638,6 +1648,105 @@ class _BottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = controller.job?.status;
+
+    // Completed: read-only — no action
+    if (_isCompleted(status)) return const SizedBox.shrink();
+
+    // Pending: the job cannot be started until an admin assigns it.
+    if (_isPending(status)) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFFFD54F)),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.hourglass_top_rounded,
+                color: Color(0xFFF57F17),
+                size: 22,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Admin has not assigned this job yet. You cannot start the job until it is assigned.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF7A4F01),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Checkout: payment pending info bar
+    if (_isCheckout(status)) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFA5D6A7)),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFF2E7D32),
+                size: 22,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Job is complete. Payment will be processed in 3–5 business days.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF1B5E20),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
       decoration: BoxDecoration(
@@ -1682,7 +1791,7 @@ class _BottomActions extends StatelessWidget {
                 child: Text(
                   controller.isRequestedByMe ? 'Start Job' : 'Request Job',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Inter',
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
@@ -1725,6 +1834,484 @@ class _BottomActions extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Completed Job Tasks Section ──────────────────────────────────────────────
+
+class _CompletedTasksSection extends StatelessWidget {
+  final Jobs job;
+
+  const _CompletedTasksSection({required this.job});
+
+  @override
+  Widget build(BuildContext context) {
+    final tasks = job.tasks ?? [];
+    if (tasks.isEmpty) return const SizedBox.shrink();
+
+    final doneCount = tasks.where((t) => t.isDone == true).length;
+
+    return _DetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _CardHeading('COMPLETED TASKS'),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$doneCount / ${tasks.length} done',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: Color(0xFF2E7D32),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: tasks.isEmpty ? 0 : doneCount / tasks.length,
+              minHeight: 5,
+              backgroundColor: Colors.grey.shade100,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF4CAF50),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...tasks.map((t) => _CompletedTaskTile(task: t)).toList(),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletedTaskTile extends StatelessWidget {
+  final Tasks task;
+
+  const _CompletedTaskTile({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final done = task.isDone == true;
+    final hasCoords = task.technicianLat != null && task.technicianLng != null;
+    final hasNote = (task.completionNote ?? '').trim().isNotEmpty;
+    final hasImage = (task.completionImage ?? '').trim().isNotEmpty;
+    final hasSig = (task.signature ?? '').trim().isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: done ? const Color(0xFFF0FFF4) : const Color(0xFFFAFAFA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: done ? const Color(0xFFA5D6A7) : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                done
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked,
+                size: 20,
+                color: done ? const Color(0xFF4CAF50) : Colors.grey.shade400,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title ?? '',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: _kValueSize,
+                        color: done
+                            ? const Color(0xFF1A1A1A)
+                            : AppColor.coolGrayText,
+                      ),
+                    ),
+                    if ((task.group ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        task.group!,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          color: AppColor.coolGrayText,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          if (done) ...[
+            // Coordinates where task was completed
+            if (hasCoords) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: AppColor.brownAccentPrimary,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${_fmt(task.technicianLat)}, ${_fmt(task.technicianLng)}',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                        color: Color(0xFF444444),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Evidence captured while the technician completed this task.
+            if (hasNote || hasImage || hasSig) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  if (hasNote)
+                    _RequirementBadge(
+                      icon: Icons.notes_outlined,
+                      label: 'Additional note',
+                    ),
+                  if (hasImage)
+                    _RequirementBadge(
+                      icon: Icons.image_outlined,
+                      label: 'Image uploaded',
+                    ),
+                  if (hasSig)
+                    _RequirementBadge(
+                      icon: Icons.draw_outlined,
+                      label: 'Signature uploaded',
+                    ),
+                ],
+              ),
+            ],
+
+            if (hasNote) ...[
+              const SizedBox(height: 10),
+              _EvidenceBlock(
+                icon: Icons.notes_outlined,
+                title: 'Additional note',
+                child: Text(
+                  task.completionNote!,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    height: 1.45,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ),
+            ],
+
+            if (hasImage) ...[
+              const SizedBox(height: 10),
+              _EvidenceBlock(
+                icon: Icons.image_outlined,
+                title: 'Technician image',
+                child: _UploadedImage(url: task.completionImage!),
+              ),
+            ],
+
+            if (hasSig) ...[
+              const SizedBox(height: 10),
+              _EvidenceBlock(
+                icon: Icons.draw_outlined,
+                title: 'Customer signature',
+                child: _UploadedImage(url: task.signature!),
+              ),
+            ],
+
+            // Completion timestamp
+            if (task.checkedAt != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Completed: ${_formatCheckedAt(task.checkedAt.toString())}',
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  color: AppColor.coolGrayText,
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _fmt(dynamic v) {
+    if (v == null) return '—';
+    try {
+      return double.parse(v.toString()).toStringAsFixed(5);
+    } catch (_) {
+      return v.toString();
+    }
+  }
+
+  String _formatCheckedAt(String raw) {
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '${months[dt.month - 1]} ${dt.day}, $h:$m $period';
+    } catch (_) {
+      return raw;
+    }
+  }
+}
+
+class _EvidenceBlock extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  const _EvidenceBlock({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: AppColor.brownAccentPrimary),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  color: Color(0xFF444444),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _UploadedImage extends StatelessWidget {
+  final String url;
+
+  const _UploadedImage({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        url,
+        width: double.infinity,
+        height: 150,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            'Uploaded file is unavailable.',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 11,
+              color: AppColor.coolGrayText,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RequirementBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _RequirementBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE8D5B0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColor.brownAccentPrimary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              color: AppColor.brownAccentPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Checkout Banner ──────────────────────────────────────────────────────────
+
+class _CheckoutBanner extends StatelessWidget {
+  const _CheckoutBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return _DetailCard(
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.verified_outlined,
+              color: Color(0xFF2E7D32),
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Job Completed',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Great work! Your payment is being processed and will be deposited within 3–5 business days.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              color: AppColor.coolGrayText,
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE8D5B0)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.schedule,
+                  size: 16,
+                  color: AppColor.brownAccentPrimary,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Payment in 3–5 business days',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: AppColor.brownAccentPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

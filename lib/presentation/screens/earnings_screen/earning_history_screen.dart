@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/app_color/app_color.dart';
+import 'package:technicianapp/constant/common_widgets/empty_api_state.dart';
 import 'package:technicianapp/constant/common_widgets/my_scaffold.dart';
 import 'earnings_controller.dart';
 import 'earning_detail_screen.dart';
@@ -29,20 +30,19 @@ class EarningHistoryScreen extends StatelessWidget {
             child: Obx(() {
               final groups = controller.displayedGroups;
               if (groups.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No earnings found.',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      color: AppColor.coolGrayText,
-                    ),
-                  ),
+                return EmptyApiState(
+                  title: 'No Earnings Found',
+                  message:
+                      'Your earnings will appear here\nafter you complete a job.',
+                  onRefresh: controller.loadEarnings,
                 );
               }
               return ListView.builder(
                 physics: const BouncingScrollPhysics(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 itemCount: groups.length,
                 itemBuilder: (context, i) {
                   final group = groups[i];
@@ -144,8 +144,7 @@ class _TabBar extends StatelessWidget {
           ),
           child: Row(
             children: ['All', 'Pendings'].map((tab) {
-              final isSelected =
-                  controller.selectedHistoryTab.value == tab;
+              final isSelected = controller.selectedHistoryTab.value == tab;
               return Expanded(
                 child: GestureDetector(
                   onTap: () => controller.selectedHistoryTab.value = tab,
@@ -164,8 +163,9 @@ class _TabBar extends StatelessWidget {
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
-                        color:
-                            isSelected ? Colors.white : AppColor.brownAccentPrimary,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColor.brownAccentPrimary,
                       ),
                     ),
                   ),
@@ -244,11 +244,7 @@ class _SummaryCard extends StatelessWidget {
 class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 40,
-      color: const Color(0xFFE8DDD0),
-    );
+    return Container(width: 1, height: 40, color: const Color(0xFFE8DDD0));
   }
 }
 
@@ -276,13 +272,13 @@ class _SummaryStat extends StatelessWidget {
     final Color badgeColor = badgePositive == null
         ? const Color(0xFFF59E0B)
         : badgePositive!
-            ? AppColor.green2Color
-            : const Color(0xFFE53935);
+        ? AppColor.green2Color
+        : const Color(0xFFE53935);
     final Color badgeBg = badgePositive == null
         ? const Color(0xFFFEF3C7)
         : badgePositive!
-            ? const Color(0xFFDBF4E4)
-            : const Color(0xFFFFEBEB);
+        ? const Color(0xFFDBF4E4)
+        : const Color(0xFFFFEBEB);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -561,8 +557,10 @@ class _HistoryItemTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(20),

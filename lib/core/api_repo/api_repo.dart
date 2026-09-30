@@ -1,22 +1,175 @@
-import 'dart:developer';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:technicianapp/core/dio_client/dio_client.dart';
 import 'package:technicianapp/core/end_point/end_point.dart';
 import 'package:technicianapp/core/models/chat_detail_model.dart';
 import 'package:technicianapp/core/models/technician_models.dart';
+import 'package:technicianapp/core/services/auth_service.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
+import 'package:technicianapp/presentation/screens/support_screen/model/chat_support_model.dart';
 import 'package:technicianapp/presentation/screens/counter_offer_screen/model/charges_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/service_type_model.dart';
 
 class ApiRepo {
   final DioClient dioClient;
 
   ApiRepo(this.dioClient);
 
+  Map<String, String> _chatHeaders() => {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer ${AuthService.to.token.value}',
+  };
+
+  Future<ChatHistoryModel> getChatHistoryApi({
+    required String technicianId,
+    int limit = 50,
+    DateTime? before,
+  })
+  async {
+    final uri =
+        Uri.parse(
+          '${ApiEndpoints.baseUrl}${ApiEndpoints.chatMessages(technicianId)}',
+        ).replace(
+          queryParameters: {
+            'limit': '$limit',
+            if (before != null) 'before': before.toUtc().toIso8601String(),
+          },
+        );
+    final response = await http.get(uri, headers: _chatHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Unable to load chat history (${response.statusCode})');
+    }
+    return ChatHistoryModel.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<ChatMessageModel> sendChatTextApi({
+    required String technicianId,
+    required String text,
+    String? receiverId,
+  }) async {
+    return _sendChatMultipart(
+      technicianId: technicianId,
+      text: text,
+      messageType: 'text',
+      receiverId: receiverId,
+    );
+  }
+
+  Future<ChatMessageModel> sendChatMediaApi({
+    required String technicianId,
+    required String filePath,
+    required String messageType,
+    String? contentType,
+    String? text,
+    String? receiverId,
+  }) async {
+    return _sendChatMultipart(
+      technicianId: technicianId,
+      filePath: filePath,
+      text: text,
+      messageType: messageType,
+      contentType: contentType,
+      receiverId: receiverId,
+    );
+  }
+
+  Future<ChatMessageModel> _sendChatMultipart({
+    required String technicianId,
+    String? text,
+    String? filePath,
+    required String messageType,
+    String? contentType,
+    String? receiverId,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        '${ApiEndpoints.baseUrl}${ApiEndpoints.chatMessages(technicianId)}',
+      ),
+    )..headers.addAll(_chatHeaders());
+    request.fields['messageType'] = messageType;
+    if (text != null && text.isNotEmpty) request.fields['text'] = text;
+    if (receiverId != null && receiverId.isNotEmpty)
+      request.fields['receiverId'] = receiverId;
+    if (filePath != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          filePath,
+          filename: filePath.split('/').last,
+          contentType: MediaType.parse(
+            contentType ??
+                (messageType == 'video' ? 'video/mp4' : 'image/jpeg'),
+          ),
+        ),
+      );
+    }
+    final response = await request.send().timeout(const Duration(minutes: 2));
+    final body = await response.stream.bytesToString();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final details = body.trim();
+      throw Exception(
+        'Unable to send chat message (${response.statusCode})${details.isEmpty ? '' : ': $details'}',
+      );
+    }
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    if (json['success'] != true) {
+      throw Exception(
+        json['message']?.toString() ?? 'Unable to send chat message',
+      );
+    }
+    final data = json['data'] as Map<String, dynamic>? ?? const {};
+    return ChatMessageModel.fromJson(
+      data['message'] as Map<String, dynamic>? ?? const {},
+    );
+  }
+
+  Future<void> markChatReadApi(String technicianId) async {
+    final response = await http.patch(
+      Uri.parse(
+        '${ApiEndpoints.baseUrl}${ApiEndpoints.chatRead(technicianId)}',
+      ),
+      headers: _chatHeaders(),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'Unable to mark chat messages as read (${response.statusCode})',
+      );
+    }
+  }
+
   Future<Response> loginApi(Map<String, dynamic> data) async {
     try {
       return await dioClient.post(ApiEndpoints.login, data: data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Log out the current session — POST /api/auth/logout.
+  Future<Response> logoutApi() async {
+    try {
+      final firebase = FirebaseService.to;
+      var fcmToken = firebase.token ?? await firebase.refreshToken();
+      final token = AuthService.to.token.value;
+      return await dioClient.post(
+        data: {'fcmToken': fcmToken},
+        ApiEndpoints.logout,
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+        ),
+      );
     } catch (e) {
       rethrow;
     }
@@ -27,11 +180,16 @@ class ApiRepo {
   Future<Response> loginWithPhoneApi({
     required String phone,
     required String password,
+    String? fcmToken,
   }) async {
     try {
       return await dioClient.post(
         ApiEndpoints.login,
-        data: {'phone': phone, 'password': password},
+        data: {
+          'phone': phone,
+          'password': password,
+          if (fcmToken != null && fcmToken.isNotEmpty) 'fcmToken': fcmToken,
+        },
       );
     } catch (e) {
       rethrow;
@@ -43,11 +201,16 @@ class ApiRepo {
   Future<Response> loginWithEmailApi({
     required String email,
     required String password,
+    String? fcmToken,
   }) async {
     try {
       return await dioClient.post(
         ApiEndpoints.login,
-        data: {'email': email, 'password': password},
+        data: {
+          'email': email,
+          'password': password,
+          if (fcmToken != null && fcmToken.isNotEmpty) 'fcmTokens': fcmToken,
+        },
       );
     } catch (e) {
       rethrow;
@@ -273,28 +436,6 @@ class ApiRepo {
     }
   }
 
-  /// Register or update the device push token on the server.
-  ///
-  /// Call this:
-  ///   • After a successful login
-  ///   • When the FCM token is refreshed (`FirebaseService.onTokenUpdated`)
-  ///   • On app start if the user is already logged in
-  ///
-  /// [platform] should be `"android"` or `"ios"`.
-  Future<Response> updateFcmTokenApi({
-    required String token,
-    required String platform,
-  }) async {
-    try {
-      return await dioClient.patch(
-        ApiEndpoints.updateFcmToken,
-        data: {'fcmToken': token, 'platform': platform},
-      );
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   /// Fetch technician dashboard — GET /api/technician/dashboard
   Future<DashboardModel> getTechnicianDashboardApi() async {
     try {
@@ -314,6 +455,39 @@ class ApiRepo {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// GET /api/technician/jobs?filter=recommended
+  Future<NewJobsModel> getRecommendedJobsApi({
+    bool recommended = true,
+    int? distanceMiles,
+    double? latitude,
+    double? longitude,
+    List<String> serviceTypeIds = const [],
+  }) async {
+    final query = <String, dynamic>{if (recommended) 'filter': 'recommended'};
+    if (distanceMiles != null) query['distanceMiles'] = distanceMiles;
+    if (latitude != null && longitude != null) {
+      query['latitude'] = latitude;
+      query['longitude'] = longitude;
+    }
+    if (serviceTypeIds.isNotEmpty) {
+      query['serviceTypes'] = serviceTypeIds.join(',');
+    }
+    final response = await dioClient.get(
+      ApiEndpoints.technicianJobs,
+      queryParameters: query,
+    );
+    return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// GET /api/service-types?includeInactive=true
+  Future<ServiceTypeResponse> getServiceTypesApi() async {
+    final response = await dioClient.get(
+      ApiEndpoints.serviceTypes,
+      queryParameters: {'includeInactive': true},
+    );
+    return ServiceTypeResponse.fromJson(response.data as Map<String, dynamic>);
   }
 
   /// Re-upload documents after rejection — reuses the same upload endpoint.
@@ -491,6 +665,25 @@ class ApiRepo {
     }
   }
 
+  /// PATCH /api/technician/requests/:requestId/respond
+  /// Body: { action: accept|counter|reject, counterOffer?, note? }
+  Future<Response> respondToRequestApi({
+    required String requestId,
+    required String action,
+    double? counterOffer,
+    String? note,
+  }) async {
+    final body = <String, dynamic>{
+      'action': action,
+      if (counterOffer != null) 'counterOffer': counterOffer,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    };
+    return dioClient.patch(
+      ApiEndpoints.respondToRequest(requestId),
+      data: body,
+    );
+  }
+
   /// POST /api/technician/requests/:requestId/message
   ///
   /// Body: { "message": "<text>" }
@@ -554,12 +747,26 @@ class ApiRepo {
 
   /// GET /api/technician/jobs?filter=active
   ///
-  /// Returns active (accepted / in-progress) jobs for this technician.
-  Future<NewJobsModel> getActiveJobsApi() async {
+  /// Returns active (accepted / inprogress) jobs for this technician.
+  Future<NewJobsModel> getActiveJobsApi({
+    int? distanceMiles,
+    double? latitude,
+    double? longitude,
+    List<String> serviceTypeIds = const [],
+  }) async {
     try {
+      final query = <String, dynamic>{'filter': 'active'};
+      if (distanceMiles != null) query['distanceMiles'] = distanceMiles;
+      if (latitude != null && longitude != null) {
+        query['latitude'] = latitude;
+        query['longitude'] = longitude;
+      }
+      if (serviceTypeIds.isNotEmpty) {
+        query['serviceTypes'] = serviceTypeIds.join(',');
+      }
       final response = await dioClient.get(
         ApiEndpoints.technicianJobs,
-        queryParameters: {'filter': 'active'},
+        queryParameters: query,
       );
       return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
@@ -575,6 +782,21 @@ class ApiRepo {
       final response = await dioClient.get(
         ApiEndpoints.technicianJobs,
         queryParameters: {'filter': 'completed'},
+      );
+      return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// GET /api/technician/jobs?filter=checkout
+  ///
+  /// Returns jobs in checkout (payment pending) state for this technician.
+  Future<NewJobsModel> getCheckoutJobsApi() async {
+    try {
+      final response = await dioClient.get(
+        ApiEndpoints.technicianJobs,
+        queryParameters: {'filter': 'checkout'},
       );
       return NewJobsModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
@@ -659,12 +881,11 @@ class ApiRepo {
   /// Signals to the backend that the technician has started navigation
   /// to the job location. No request body required.
   Future<void> startNavigationApi(String jobId) async {
-    try {
-      await dioClient.patch(ApiEndpoints.startNavigation(jobId));
-    } catch (e) {
-      // Non-blocking — log and continue so navigation still starts even if
-      // the API call fails (e.g. offline or temporary network hiccup).
-      print('[ApiRepo] startNavigationApi error: $e');
+    final response = await dioClient.patch(ApiEndpoints.startNavigation(jobId));
+    if (response.data is Map && response.data['success'] == false) {
+      throw StateError(
+        response.data['message']?.toString() ?? 'Unable to start navigation.',
+      );
     }
   }
 
@@ -695,6 +916,85 @@ class ApiRepo {
     try {
       final response = await dioClient.patch(ApiEndpoints.markCompleted(jobId));
       return MarkCompletedModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/complete  (with location)
+  ///
+  /// Same endpoint but sends technician's current coordinates so the server
+  /// can record where the job was completed.
+  Future<MarkCompletedModel> completeJobApi(
+    String jobId, {
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      final response = await dioClient.patch(
+        ApiEndpoints.markCompleted(jobId),
+        data: {'lat': lat, 'lng': lng},
+      );
+      return MarkCompletedModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/tasks/:taskIndex/complete
+  ///
+  /// Marks a single checklist task as done.
+  /// Sends as multipart/form-data always (required by backend).
+  ///
+  /// Field names as required by the backend:
+  ///   completionNote   — text note
+  ///   completionImage  — binary image file (JPEG/PNG)
+  ///   signature        — binary PNG bytes from signature pad
+  ///   lat / lng        — technician GPS coordinates
+  Future<Response> completeTaskApi({
+    required String jobId,
+    required int taskIndex,
+    String? completionNote,
+    String? imagePath,
+    Uint8List? signatureBytes,
+    double? lat,
+    double? lng,
+  }) async {
+    try {
+      final fields = <String, dynamic>{};
+
+      // GPS coordinates — always send when available
+      if (lat != null) fields['lat'] = lat.toString();
+      if (lng != null) fields['lng'] = lng.toString();
+
+      // Completion note
+      if (completionNote != null && completionNote.isNotEmpty) {
+        fields['completionNote'] = completionNote;
+      }
+
+      // Photo evidence — streamed as raw binary
+      if (imagePath != null && imagePath.isNotEmpty) {
+        fields['completionImage'] = await MultipartFile.fromFile(
+          imagePath,
+          filename: imagePath.split('/').last,
+        );
+      }
+
+      // Signature — binary PNG bytes from the signature pad
+      if (signatureBytes != null && signatureBytes.isNotEmpty) {
+        fields['signature'] = MultipartFile.fromBytes(
+          signatureBytes,
+          filename: 'signature.png',
+        );
+      }
+
+      // Always send as multipart (backend always expects it)
+      return await dioClient.patch(
+        ApiEndpoints.completeTask(jobId, taskIndex),
+        data: FormData.fromMap(fields),
+        // Do NOT pass Options(contentType: ...) — Dio sets the correct
+        // multipart/form-data; boundary=... automatically from FormData.
+      );
     } catch (e) {
       rethrow;
     }
@@ -768,6 +1068,39 @@ class ApiRepo {
       return Jobs.fromJson(
         response.data['data']['job'] as Map<String, dynamic>,
       );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /api/routes/directions
+  ///
+  /// Fetches a road-snapped route between [origin] and [destination].
+  /// Returns [DirectionsModel] containing distanceMeters, duration, and
+  /// encodedPolyline that can be decoded into a list of [LatLng] points.
+  ///
+  /// Payload:
+  /// ```json
+  /// {
+  ///   "origin":      { "lat": 30.9010, "lng": 75.8573 },
+  ///   "destination": { "lat": 30.7046, "lng": 76.7179 }
+  /// }
+  /// ```
+  Future<DirectionsModel> getDirectionsApi({
+    required double originLat,
+    required double originLng,
+    required double destLat,
+    required double destLng,
+  }) async {
+    try {
+      final response = await dioClient.post(
+        ApiEndpoints.directions,
+        data: {
+          'origin': {'lat': originLat, 'lng': originLng},
+          'destination': {'lat': destLat, 'lng': destLng},
+        },
+      );
+      return DirectionsModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       rethrow;
     }

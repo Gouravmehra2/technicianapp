@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/service_type_model.dart';
+import 'job_controller.dart';
 
 // ─── Service Category Model ──────────────────────────────────────────────────
 
@@ -12,16 +14,18 @@ class ServiceCategory {
 // ─── Filter Controller ────────────────────────────────────────────────────────
 
 class JobFilterController extends GetxController {
-  // Distance
-  final distanceKm = 10.0.obs;
+  late final JobController jobController;
+
+  final recommendedSelected = false.obs;
+
+  // Distance is stored in miles because that is what the API expects.
+  final distanceMiles = 0.0.obs;
 
   // Earning options
   final earningOptions = ['Any', '\$500+', '\$1,000+', '\$2,000+'];
   final selectedEarning = 'Any'.obs;
 
-  // Job types
-  final jobTypes = ['Fixed Price', 'Custom Quote', 'Emergency'];
-  final selectedJobTypes = <String>{'Fixed Price', 'Custom Quote'}.obs;
+  final selectedServiceTypeIds = <String>{}.obs;
 
   // Date options
   final dateOptions = ['Today', 'Tomorrow', 'This Week', 'Custom'];
@@ -34,33 +38,76 @@ class JobFilterController extends GetxController {
     const ServiceCategory(label: 'Networking', icon: Icons.device_hub_outlined),
     const ServiceCategory(label: 'CCTV', icon: Icons.videocam_outlined),
     const ServiceCategory(label: 'Computer', icon: Icons.computer_outlined),
-    const ServiceCategory(label: 'Electrical', icon: Icons.electrical_services_outlined),
+    const ServiceCategory(
+      label: 'Electrical',
+      icon: Icons.electrical_services_outlined,
+    ),
   ];
   final selectedCategory = 'TV & Audio'.obs;
+
+  List<ServiceType> get serviceTypes => jobController.serviceTypes;
+
+  @override
+  void onInit() {
+    super.onInit();
+    jobController = Get.find<JobController>();
+    recommendedSelected.value = jobController.recommendedSelected.value;
+    distanceMiles.value =
+        jobController.selectedDistanceMiles.value?.toDouble() ?? 0;
+    selectedServiceTypeIds.assignAll(jobController.selectedServiceTypeIds);
+    if (jobController.serviceTypes.isEmpty) jobController.loadServiceTypes();
+  }
 
   void selectCategory(String cat) => selectedCategory.value = cat;
 
   void selectEarning(String opt) => selectedEarning.value = opt;
 
-  void toggleJobType(String type) {
-    if (selectedJobTypes.contains(type)) {
-      selectedJobTypes.remove(type);
+  void toggleServiceType(String id) {
+    if (selectedServiceTypeIds.contains(id)) {
+      selectedServiceTypeIds.remove(id);
     } else {
-      selectedJobTypes.add(type);
+      selectedServiceTypeIds.add(id);
     }
+    selectedServiceTypeIds.refresh();
   }
 
   void selectDate(String date) => selectedDate.value = date;
 
   void resetFilters() {
-    distanceKm.value = 10.0;
+    distanceMiles.value = 0;
     selectedEarning.value = 'Any';
-    selectedJobTypes.assignAll({'Fixed Price', 'Custom Quote'});
+    selectedServiceTypeIds.clear();
+    selectedServiceTypeIds.refresh();
     selectedDate.value = 'Today';
     selectedCategory.value = 'TV & Audio';
   }
 
-  void applyFilters() {
+  Future<void> applyFilters() async {
+    jobController.recommendedSelected.value = recommendedSelected.value;
+    jobController.selectedDistanceMiles.value = distanceMiles.value == 0
+        ? null
+        : distanceMiles.value.round();
+    jobController.selectedServiceTypeIds
+      ..clear()
+      ..addAll(selectedServiceTypeIds);
+    jobController.selectedServiceTypeIds.refresh();
+    await jobController.loadTab(jobController.selectedTab.value);
+    Get.back();
+  }
+
+  Future<void> clearFiltersAndBack() async {
+    recommendedSelected.value = false;
+    distanceMiles.value = 0;
+    selectedEarning.value = 'Any';
+    selectedServiceTypeIds.clear();
+    selectedServiceTypeIds.refresh();
+    selectedDate.value = 'Today';
+    selectedCategory.value = 'TV & Audio';
+    jobController.recommendedSelected.value = false;
+    jobController.selectedDistanceMiles.value = null;
+    jobController.selectedServiceTypeIds.clear();
+    jobController.selectedServiceTypeIds.refresh();
+    await jobController.loadTab(jobController.selectedTab.value);
     Get.back();
   }
 }

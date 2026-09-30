@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
@@ -33,7 +31,8 @@ import 'package:technicianapp/presentation/screens/technician_home_screen/model/
 
 enum ChargeType { fixedPrice, additionalCharges }
 
-class CounterOfferController extends GetxController {
+class CounterOfferController extends GetxController
+    with WidgetsBindingObserver {
   final ApiRepo _apiRepo = Get.find<ApiRepo>();
 
   late Jobs job;
@@ -55,6 +54,10 @@ class CounterOfferController extends GetxController {
   final RxBool isSending = false.obs;
   final Rxn<InvoiceModel> invoice = Rxn<InvoiceModel>();
   final RxBool isJobAccepted = false.obs;
+  final Rxn<RequestStatusData> requestStatus = Rxn<RequestStatusData>();
+  final RxList<ChargeItem> charges = <ChargeItem>[].obs;
+  bool _refreshInFlight = false;
+  bool _refreshQueued = false;
 
   // ── Charge type toggle (radio) ────────────────────────────────────────────
   final Rx<ChargeType> chargeType = ChargeType.fixedPrice.obs;
@@ -85,6 +88,7 @@ class CounterOfferController extends GetxController {
     if (raw is String && raw.isNotEmpty) {
       _requestId = raw;
     }
+    _requestId ??= job.requestId;
 
     // Opening coordinator message
     messages.add(
@@ -100,26 +104,72 @@ class CounterOfferController extends GetxController {
 
     if (_requestId != null && _requestId!.isNotEmpty) {
       _loadConversation();
+      _loadRequestStatus();
     }
 
+    WidgetsBinding.instance.addObserver(this);
     _listenToSocket();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SocketService.instance.reconnectIfNeeded();
+      _loadRequestStatus();
+      _loadConversation();
+    }
+  }
+
+  Future<void> _loadRequestStatus() async {
+    final requestId = _requestId;
+    if (requestId == null || requestId.isEmpty) return;
+
+    try {
+      final status = await _apiRepo.getRequestStatusApi(requestId);
+      requestStatus.value = status.data;
+      charges.assignAll(status.data.charges.all);
+      invoice.value = status.data.invoice;
+      isJobAccepted.value =
+          status.data.request.status == 'accepted' ||
+          status.data.request.status == 'assigned';
+      if (status.data.request.status == 'assigned') {
+        AppSnackbar.success(
+          'This request has been assigned to you.',
+          title: 'Job assigned',
+        );
+      }
+      messages.refresh();
+    } catch (e) {
+      debugPrint('[CounterOffer] status refresh error: $e');
+    }
   }
 
   // ── Load conversation ─────────────────────────────────────────────────────
   Future<void> _loadConversation() async {
     if (_requestId == null || _requestId!.isEmpty) return;
 
+    if (_refreshInFlight) {
+      _refreshQueued = true;
+      return;
+    }
+    _refreshInFlight = true;
+
     try {
       isLoading.value = true;
+      await _loadRequestStatus();
 
       _chatDetail = await _apiRepo.getConversationApi(job.sId.toString());
       final requestDetail = _chatDetail?.data?.request;
-      final reqStatus = requestDetail?.status ?? '';
-      final finalAmount = requestDetail?.counterOffer ?? 0;
+      final authoritativeRequest = requestStatus.value?.request;
+      final reqStatus =
+          authoritativeRequest?.status ?? requestDetail?.status ?? '';
+      final finalAmount =
+          authoritativeRequest?.counterOffer ??
+          requestDetail?.counterOffer ??
+          0;
 
-      if (finalAmount > 0) {}
-      isJobAccepted.value = reqStatus == 'accepted';
+      isJobAccepted.value = reqStatus == 'accepted' || reqStatus == 'assigned';
 
       // Rebuild — keep only the opening coordinator message
       messages.removeRange(1, messages.length);
@@ -136,13 +186,128 @@ class CounterOfferController extends GetxController {
         _handleStatusOnly(reqStatus, finalAmount, requestDetail?.createdAt);
       }
 
+      _reconcileAuthoritativeStatus();
+
       messages.refresh();
       _scrollToBottom();
     } catch (e) {
       debugPrint('[CounterOffer] _loadConversation error: $e');
     } finally {
       isLoading.value = false;
+      _refreshInFlight = false;
+      if (_refreshQueued) {
+        _refreshQueued = false;
+        _loadConversation();
+      }
     }
+  }
+
+  /// The status endpoint is authoritative for the current value and action.
+  /// Conversation history can lag behind socket events, so reconcile it after
+  /// the conversation has been rebuilt rather than appending stale snapshots.
+  void _reconcileAuthoritativeStatus() {
+    final data = requestStatus.value;
+    if (data == null) return;
+
+    final request = data.request;
+    final adminHasFixedCounter =
+        request.status == 'counter-offer' &&
+        request.counterOfferFrom == 'admin' &&
+        request.counterOffer != null;
+    if (adminHasFixedCounter) {
+      final fixedMessage = ChatMessage(
+        isUser: false,
+        type: MsgType.adminOffer,
+        text: request.adminMessage?.trim().isNotEmpty == true
+            ? request.adminMessage!.trim()
+            : 'The admin sent a counter-offer for the fixed price.',
+        time: _formatApiTime(request.createdAt),
+        offerAmount: request.counterOffer!.toStringAsFixed(2),
+        actionTaken: RxnBool(null),
+      );
+      final fixedIndex = messages.indexWhere(
+        (message) =>
+            message.type == MsgType.adminOffer && message.chargeItem == null,
+      );
+      if (fixedIndex == -1) {
+        messages.add(fixedMessage);
+      } else {
+        messages[fixedIndex] = fixedMessage;
+      }
+    }
+
+    if ((request.status == 'accepted' || request.status == 'assigned') &&
+        !messages.any((message) => message.type == MsgType.accepted)) {
+      messages.removeWhere(
+        (message) =>
+            message.type == MsgType.adminOffer && message.chargeItem == null,
+      );
+      _addAcceptedBubble(
+        (request.agreedTotal ?? request.counterOffer ?? 0).round(),
+        _formatApiTime(request.createdAt),
+      );
+    }
+
+    if (request.status == 'rejected') {
+      messages.removeWhere(
+        (message) =>
+            message.type == MsgType.adminOffer && message.chargeItem == null,
+      );
+      if (!messages.any(
+        (message) => message.text.toLowerCase().contains('declined'),
+      )) {
+        messages.add(
+          ChatMessage(
+            isUser: false,
+            type: MsgType.text,
+            text: request.adminMessage?.trim().isNotEmpty == true
+                ? request.adminMessage!.trim()
+                : 'Your fixed-price offer was declined.',
+            time: _formatApiTime(request.createdAt),
+          ),
+        );
+      }
+    }
+
+    for (final charge in charges) {
+      final index = messages.indexWhere(
+        (message) => message.chargeItem?.id == charge.id,
+      );
+      final chargeMessage = _chargeMessage(charge);
+      if (index == -1) {
+        messages.add(chargeMessage);
+      } else {
+        messages[index] = chargeMessage;
+      }
+    }
+
+    final waitingForTechnician = charges.any(
+      (charge) => charge.needsYourResponse,
+    );
+    showCounterForm.value = !isJobAccepted.value && !waitingForTechnician;
+  }
+
+  ChatMessage _chargeMessage(ChargeItem charge) {
+    final waitingForTechnician = charge.needsYourResponse;
+    final isAccepted = charge.status == 'accepted';
+    final amount =
+        charge.adminCounterAmount ??
+        charge.technicianCounterAmount ??
+        charge.agreedAmount ??
+        charge.requestedAmount;
+    return ChatMessage(
+      isUser: false,
+      type: MsgType.adminOffer,
+      text: charge.adminNote?.trim().isNotEmpty == true
+          ? charge.adminNote!.trim()
+          : 'Additional charge: ${charge.label}',
+      time: _formatApiTime(
+        charge.reviewedAt ?? charge.resolvedAt ?? charge.submittedAt,
+      ),
+      offerAmount: amount.toStringAsFixed(2),
+      actionTaken: RxnBool(waitingForTechnician ? null : isAccepted),
+      chargeItem: charge,
+    );
   }
 
   // ── Build chat from conversation entries ──────────────────────────────────
@@ -316,6 +481,11 @@ class CounterOfferController extends GetxController {
     socket.on('charge:responded', (_) => _loadConversation());
     socket.on('invoice:generated', (_) => _loadConversation());
     socket.on('invoice:paid', (_) => _loadConversation());
+    socket.on('final_amount:calculated', (_) => _loadRequestStatus());
+    socket.on('request:assigned', (_) {
+      _loadRequestStatus();
+      _loadConversation();
+    });
   }
 
   // ── Plain text message ────────────────────────────────────────────────────
@@ -372,163 +542,108 @@ class CounterOfferController extends GetxController {
 
   // ── Send counter offer ────────────────────────────────────────────────────
   Future<void> sendCounterOffer() async {
-    final isFixed = chargeType.value == ChargeType.fixedPrice;
-
-    // ── Validate ──────────────────────────────────────────────────────────
-    if (isFixed) {
-      final amountStr = counterAmountCtrl.text.trim();
-      if (amountStr.isEmpty) {
-        AppSnackbar.error(
-          'Please enter your counter amount.',
-          title: 'Validation',
-        );
-        return;
-      }
-      final parsed = double.tryParse(
-        amountStr.replaceAll('\$', '').replaceAll('₹', '').replaceAll(',', ''),
+    final fixedText = counterAmountCtrl.text.trim();
+    double? fixedPrice;
+    if (fixedText.isNotEmpty) {
+      fixedPrice = double.tryParse(
+        fixedText.replaceAll('\$', '').replaceAll('₹', '').replaceAll(',', ''),
       );
-      if (parsed == null || parsed <= 0) {
+      if (fixedPrice == null || fixedPrice <= 0) {
         AppSnackbar.error(
-          'Enter a valid counter amount greater than 0.',
-          title: 'Validation',
-        );
-        return;
-      }
-    } else {
-      // Additional charges mode — at least one row must be checked with amount
-      final hasAny = allowances.any(
-        (a) =>
-            a.checked.value &&
-            a.amountCtrl.text.trim().isNotEmpty &&
-            (double.tryParse(
-                      a.amountCtrl.text
-                          .trim()
-                          .replaceAll('\$', '')
-                          .replaceAll(',', ''),
-                    ) ??
-                    0) >
-                0,
-      );
-      if (!hasAny) {
-        AppSnackbar.error(
-          'Please add at least one additional charge.',
+          'Enter a valid fixed price greater than 0.',
           title: 'Validation',
         );
         return;
       }
     }
 
+    final chargesPayload = <Map<String, dynamic>>[];
+    for (final a in allowances) {
+      if (!a.checked.value) continue;
+      final amount = double.tryParse(
+        a.amountCtrl.text
+            .trim()
+            .replaceAll('\$', '')
+            .replaceAll('₹', '')
+            .replaceAll(',', ''),
+      );
+      if (amount == null || amount <= 0) {
+        AppSnackbar.error(
+          'Enter a valid amount for "${a.label}".',
+          title: 'Validation',
+        );
+        return;
+      }
+      chargesPayload.add({
+        'label': _toBackendLabel(a),
+        'description': a.label == 'Other' ? a.otherLabelCtrl.text.trim() : '',
+        'amount': amount,
+      });
+    }
+
+    if (fixedPrice == null && chargesPayload.isEmpty) {
+      AppSnackbar.error(
+        'Add a fixed price or at least one additional charge.',
+        title: 'Validation',
+      );
+      return;
+    }
+
     try {
       isSending.value = true;
 
-      if (isFixed) {
-        final fixedPrice = double.parse(
-          counterAmountCtrl.text
-              .trim()
-              .replaceAll('\$', '')
-              .replaceAll('₹', '')
-              .replaceAll(',', ''),
+      final currentRequest = requestStatus.value?.request;
+      if (_requestId != null &&
+          currentRequest?.status == 'counter-offer' &&
+          currentRequest?.counterOfferFrom == 'admin' &&
+          fixedPrice != null) {
+        final response = await _apiRepo.respondToRequestApi(
+          requestId: _requestId!,
+          action: 'counter',
+          counterOffer: fixedPrice,
+          note: proposalCtrl.text,
         );
-
-        if (_requestId == null || _requestId!.isEmpty) {
-          // First offer — create the request
-          await _requestJobWithFixedPrice(fixedPrice: fixedPrice).then((value) {
-            _requestId = value['data']['request']['_id'];
-          });
-        } else {
-          // Re-counter — submit charges to existing request
-          await _submitChargesToExistingRequest(
-            charges: [
-              {
-                'label': 'Fixed Price',
-                'description': 'Counter offer fixed price',
-                'amount': fixedPrice,
-                'isFixedPrice': true,
-              },
-            ],
-            counterAmount: fixedPrice.toStringAsFixed(2),
-          );
+        final body = response.data as Map<String, dynamic>;
+        if (body['success'] != true) {
+          throw Exception(body['message'] ?? 'Failed to send counter offer');
         }
+        _resetForm();
+        await _loadRequestStatus();
+        await _loadConversation();
+        return;
+      }
+
+      final charges = [
+        if (fixedPrice != null)
+          {
+            'label': 'Fixed Price',
+            'description': 'Counter offer fixed price',
+            'amount': fixedPrice,
+            'isFixedPrice': true,
+          },
+        ...chargesPayload,
+      ];
+
+      if (_requestId == null || _requestId!.isEmpty) {
+        await _requestJobWithOffer(
+          fixedPrice: fixedPrice,
+          charges: chargesPayload,
+        );
       } else {
-        // Additional charges mode
-        final List<Map<String, dynamic>> chargesPayload = [];
-        for (final a in allowances) {
-          if (!a.checked.value) continue;
-          final amt =
-              double.tryParse(
-                a.amountCtrl.text
-                    .trim()
-                    .replaceAll('\$', '')
-                    .replaceAll('₹', '')
-                    .replaceAll(',', ''),
-              ) ??
-              0;
-          if (amt <= 0) {
-            AppSnackbar.error(
-              'Enter a valid amount for "${a.label}".',
-              title: 'Validation',
-            );
-            return;
-          }
-          chargesPayload.add({
-            'label': _toBackendLabel(a),
-            'description': a.label == 'Other'
-                ? a.otherLabelCtrl.text.trim()
-                : '',
-            'amount': amt,
-          });
-        }
-
-        if (_requestId == null || _requestId!.isEmpty) {
-          // No request yet — create one first (with no fixed price, only charges)
-          await _requestJobWithChargesOnly(chargesPayload: chargesPayload);
-        } else {
-          await _submitChargesToExistingRequest(
-            charges: chargesPayload,
-            counterAmount: null,
-          );
-        }
+        await _submitChargesToExistingRequest(
+          charges: charges,
+          counterAmount: fixedPrice?.toStringAsFixed(2),
+        );
       }
     } finally {
       isSending.value = false;
     }
   }
 
-  // ── Case A1: First offer — fixed price ────────────────────────────────────
-  Future _requestJobWithFixedPrice({required double fixedPrice}) async {
-    try {
-      final response = await _apiRepo.requestJobApi(
-        jobId: _jobId,
-        note: proposalCtrl.text.trim().isEmpty
-            ? null
-            : proposalCtrl.text.trim(),
-        fixedPrice: fixedPrice.round(),
-        charges: null,
-      );
-      final body = response.data as Map<String, dynamic>;
-      if (body['success'] != true) {
-        AppSnackbar.error(
-          body['message'] as String? ?? 'Failed to request job',
-          title: 'Error',
-        );
-        return;
-      }
-      _captureRequestId(body);
-      _addOfferBubble(fixedPrice.toStringAsFixed(2), isFixed: true);
-      AppSnackbar.success(
-        body['message'] as String? ?? 'Counter offer sent!',
-        title: 'Success',
-      );
-      await _loadConversation();
-      return response.data;
-    } catch (e) {
-      AppSnackbar.error(e.toString(), title: 'Error');
-    }
-  }
-
-  // ── Case A2: First offer — additional charges only ────────────────────────
-  Future<void> _requestJobWithChargesOnly({
-    required List<Map<String, dynamic>> chargesPayload,
+  // ── First offer — fixed price and/or additional charges ──────────────────
+  Future<void> _requestJobWithOffer({
+    required double? fixedPrice,
+    required List<Map<String, dynamic>> charges,
   }) async {
     try {
       final response = await _apiRepo.requestJobApi(
@@ -536,8 +651,8 @@ class CounterOfferController extends GetxController {
         note: proposalCtrl.text.trim().isEmpty
             ? null
             : proposalCtrl.text.trim(),
-        fixedPrice: null,
-        charges: chargesPayload,
+        fixedPrice: fixedPrice?.round(),
+        charges: charges.isEmpty ? null : charges,
       );
       final body = response.data as Map<String, dynamic>;
       if (body['success'] != true) {
@@ -547,9 +662,8 @@ class CounterOfferController extends GetxController {
         );
         return;
       }
-
       _captureRequestId(body);
-      _addOfferBubble(null, isFixed: false);
+      _addOfferBubble(fixedPrice?.toStringAsFixed(2));
       AppSnackbar.success(
         body['message'] as String? ?? 'Counter offer sent!',
         title: 'Success',
@@ -579,7 +693,7 @@ class CounterOfferController extends GetxController {
         return;
       }
 
-      _addOfferBubble(counterAmount, isFixed: counterAmount != null);
+      _addOfferBubble(counterAmount);
       AppSnackbar.success(
         body['message'] as String? ?? 'Counter offer sent!',
         title: 'Success',
@@ -602,21 +716,13 @@ class CounterOfferController extends GetxController {
   }
 
   // ── Optimistic offer bubble ───────────────────────────────────────────────
-  void _addOfferBubble(String? counterAmount, {required bool isFixed}) {
-    final snapshot = !isFixed
-        ? allowances
-              .where(
-                (a) => a.checked.value && a.amountCtrl.text.trim().isNotEmpty,
-              )
-              .map(
-                (a) => Allowance(
-                  a.label,
-                  checked: true,
-                  amount: a.amountCtrl.text,
-                ),
-              )
-              .toList()
-        : <Allowance>[];
+  void _addOfferBubble(String? counterAmount) {
+    final snapshot = allowances
+        .where((a) => a.checked.value && a.amountCtrl.text.trim().isNotEmpty)
+        .map(
+          (a) => Allowance(a.label, checked: true, amount: a.amountCtrl.text),
+        )
+        .toList();
     final proposal = proposalCtrl.text.trim();
 
     messages.add(
@@ -639,12 +745,14 @@ class CounterOfferController extends GetxController {
   Future<void> acceptOffer(ChatMessage msg) async {
     final chargeId = msg.chargeItem?.id;
     if (chargeId == null || chargeId.isEmpty) {
-      msg.actionTaken?.value = true;
-      showCounterForm.value = false;
-      messages.refresh();
-      _scrollToBottom();
+      if (_requestId == null ||
+          requestStatus.value?.request.counterOfferFrom != 'admin') {
+        return;
+      }
+      await _respondToFixedOffer(action: 'accept');
       return;
     }
+    if (msg.chargeItem?.needsYourResponse != true) return;
     try {
       isSending.value = true;
       final response = await _apiRepo.respondToChargeApi(
@@ -669,41 +777,112 @@ class CounterOfferController extends GetxController {
     }
   }
 
+  Future<void> rejectFixedOffer() async {
+    if (_requestId == null ||
+        requestStatus.value?.request.counterOfferFrom != 'admin') {
+      return;
+    }
+    await _respondToFixedOffer(action: 'reject');
+  }
+
   // ── Counter admin's counter-offer ─────────────────────────────────────────
   Future<void> counterAdminOffer(ChatMessage msg) async {
     final chargeId = msg.chargeItem?.id;
     if (chargeId == null || chargeId.isEmpty) {
-      msg.actionTaken?.value = false;
-      messages.refresh();
+      if (_requestId == null ||
+          requestStatus.value?.request.counterOfferFrom != 'admin') {
+        return;
+      }
       _resetForm();
       showCounterForm.value = true;
       _scrollToBottom();
+      return;
+    }
+    if (msg.chargeItem?.needsYourResponse != true) return;
+    final amountCtrl = TextEditingController(
+      text: msg.chargeItem?.adminCounterAmount?.toStringAsFixed(2),
+    );
+    final noteCtrl = TextEditingController();
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Counter additional charge'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountCtrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Your amount'),
+            ),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(labelText: 'Note (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      amountCtrl.dispose();
+      noteCtrl.dispose();
+      return;
+    }
+    final amount = double.tryParse(amountCtrl.text.replaceAll(',', ''));
+    amountCtrl.dispose();
+    final note = noteCtrl.text;
+    noteCtrl.dispose();
+    if (amount == null || amount <= 0) {
+      AppSnackbar.error('Enter a valid counter amount.', title: 'Validation');
       return;
     }
     try {
       isSending.value = true;
       final response = await _apiRepo.respondToChargeApi(
         chargeId: chargeId,
-        action: 'reject',
+        action: 'counter',
+        amount: amount,
+        note: note,
       );
       final body = response.data as Map<String, dynamic>;
-      if (body['success'] == true) {
-        AppSnackbar.success(
-          'You can now submit a new counter offer.',
-          title: 'Info',
-        );
-        await _loadConversation();
-      } else {
-        AppSnackbar.error(
-          body['message'] as String? ?? 'Failed',
-          title: 'Error',
-        );
-      }
+      if (body['success'] != true) throw Exception(body['message'] ?? 'Failed');
+      await _loadRequestStatus();
+      await _loadConversation();
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
     } finally {
       isSending.value = false;
-      _scrollToBottom();
+    }
+  }
+
+  Future<void> _respondToFixedOffer({required String action}) async {
+    try {
+      isSending.value = true;
+      final response = await _apiRepo.respondToRequestApi(
+        requestId: _requestId!,
+        action: action,
+        note: action == 'accept' ? 'Agreed.' : proposalCtrl.text,
+      );
+      final body = response.data as Map<String, dynamic>;
+      if (body['success'] != true) throw Exception(body['message'] ?? 'Failed');
+      await _loadRequestStatus();
+      await _loadConversation();
+    } catch (e) {
+      AppSnackbar.error(e.toString(), title: 'Error');
+    } finally {
+      isSending.value = false;
     }
   }
 
@@ -773,6 +952,9 @@ class CounterOfferController extends GetxController {
     SocketService.instance.off('charge:responded');
     SocketService.instance.off('invoice:generated');
     SocketService.instance.off('invoice:paid');
+    SocketService.instance.off('final_amount:calculated');
+    SocketService.instance.off('request:assigned');
+    WidgetsBinding.instance.removeObserver(this);
 
     messageController.dispose();
     counterAmountCtrl.dispose();

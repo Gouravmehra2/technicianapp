@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:technicianapp/core/services/location_manager.dart';
@@ -15,7 +14,10 @@ class MapController extends GetxController {
   final RxBool isMapReady = false.obs;
   final RxString selectedAddress = ''.obs;
 
-  static const LatLng _defaultPosition = LatLng(20.5937, 78.9629); // India center
+  static const LatLng _defaultPosition = LatLng(
+    20.5937,
+    78.9629,
+  ); // India center
   static const double _defaultZoom = 5.0;
   static const double _locationZoom = 15.0;
 
@@ -51,24 +53,10 @@ class MapController extends GetxController {
   }
 
   Future<void> _fetchAddress(LatLng position) async {
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        selectedAddress.value = [
-          p.name,
-          p.subLocality,
-          p.locality,
-          p.administrativeArea,
-          p.country,
-        ].where((e) => e != null && e.isNotEmpty).join(', ');
-      }
-    } catch (_) {
-      selectedAddress.value = '';
-    }
+    selectedAddress.value = await LocationManager.reverseGeocode(
+      position.latitude,
+      position.longitude,
+    );
   }
 
   // ── Location ──────────────────────────────────────────────────────────────
@@ -87,7 +75,7 @@ class MapController extends GetxController {
     final latLng = LatLng(result.lat, result.lng);
     currentPosition.value = latLng;
     selectedPosition.value = latLng;
-    _fetchAddress(latLng);
+    selectedAddress.value = result.address;
 
     if (animateCamera || isMapReady.value) {
       _animateTo(latLng, zoom: _locationZoom);

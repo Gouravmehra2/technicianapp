@@ -1,16 +1,20 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:technicianapp/constant/common_widgets/app_snackbar.dart';
 import 'package:technicianapp/core/services/auth_service.dart';
 import 'package:technicianapp/constant/routes/app_routes.dart';
 import 'package:technicianapp/core/api_repo/api_repo.dart';
 import 'package:technicianapp/core/services/location_service.dart';
-import 'package:technicianapp/core/services/map_launch_helper.dart';
 import 'package:technicianapp/core/services/socket_service.dart';
+import 'package:technicianapp/core/services/firebase_service.dart';
 import 'package:technicianapp/presentation/screens/dashboard/dashboard_controller.dart';
 import 'package:technicianapp/presentation/screens/earnings_screen/your_earnings_screen.dart';
 import 'package:technicianapp/presentation/screens/job_screen/job_controller.dart';
+import 'package:technicianapp/presentation/screens/schedule_job_screen/schedule_job_controller.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/dashboard_model.dart';
 import 'package:technicianapp/presentation/screens/technician_home_screen/model/new_jobs_model.dart';
+import 'package:technicianapp/presentation/screens/technician_home_screen/model/service_type_model.dart';
 
 class TechnicianHomeController extends GetxController {
   final ApiRepo apiRepo = Get.find<ApiRepo>();
@@ -35,6 +39,21 @@ class TechnicianHomeController extends GetxController {
   // Using the actual model classes directly
   final RxList<Requests> todaySchedule = <Requests>[].obs;
   final RxList<Jobs> newJobs = <Jobs>[].obs;
+  final RxList<ServiceType> serviceTypes = <ServiceType>[].obs;
+  final RxSet<String> selectedServiceTypeIds = <String>{}.obs;
+  final RxBool recommendedSelected = false.obs;
+  final RxnInt selectedDistanceMiles = RxnInt();
+  final RxBool isServiceTypesLoading = false.obs;
+
+  String get selectedServiceTypeLabel {
+    final selectedNames = serviceTypes
+        .where((type) => selectedServiceTypeIds.contains(type.id))
+        .map((type) => type.name)
+        .toList();
+    if (selectedNames.isEmpty) return 'All Job Types';
+    if (selectedNames.length <= 2) return selectedNames.join(', ');
+    return '${selectedNames.take(2).join(', ')} +${selectedNames.length - 2}';
+  }
 
   /// Today's scheduled jobs fetched directly from GET /api/technician/jobs?filter=today
   final RxList<Jobs> todayScheduledJobs = <Jobs>[].obs;
@@ -48,11 +67,18 @@ class TechnicianHomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _requestNotificationPermission();
     hitDashboardApi();
     hitJobsApi();
+    hitServiceTypesApi();
     hitMetricsApi();
     hitTodayScheduleApi();
     _listenToSocket();
+  }
+
+  void _requestNotificationPermission() {
+    if (!Get.isRegistered<FirebaseService>()) return;
+    unawaited(FirebaseService.to.requestNotificationPermission());
   }
 
   /// Subscribe to real-time job/request socket events.
@@ -138,26 +164,84 @@ class TechnicianHomeController extends GetxController {
 
   /// Navigate button for a [Jobs] item — opens Google Maps if coordinates exist,
   /// otherwise falls back to the in-app navigation screen.
-  void onNavigateJobTapped(Jobs job) {
-    final lat = job.coordinates?.lat;
-    final lng = job.coordinates?.lng;
-    if (lat != null && lng != null) {
-      MapLaunchHelper.navigateTo(lat: lat, lng: lng);
-    } else {
-      Get.toNamed(AppRoutes.scheduleJobNavigationScreen, arguments: job);
-    }
-  }
+  // void onNavigateJobTapped(Jobs job) {
+  //   final lat = job.coordinates?.lat;
+  //   final lng = job.coordinates?.lng;
+  //   if (lat != null && lng != null) {
+  //     MapLaunchHelper.navigateTo(lat: lat, lng: lng);
+  //   } else {
+  //     Get.toNamed(AppRoutes.scheduleJobNavigationScreen, arguments: job);
+  //   }
+  // }
 
   /// Contact support for a [Jobs] item.
   void onContactSupportJobTapped(Jobs job) =>
       Get.toNamed(AppRoutes.supportScreen);
 
   /// View details for a [Jobs] item (from today-schedule API).
-  void onViewDetailsJobTapped(Jobs job) =>
+  /// • ontheway  → resume live navigation on ScheduleJobNavigationScreen
+  /// • inprogress → open ScheduleJobDetailScreen (checklist)
+  /// • everything else (assigned, upcoming, etc.) → open generic JobDetailScreen
+  void onViewDetailsJobTapped(Jobs job) {
+    final status = (job.status ?? '').toLowerCase();
+    if (status == 'ontheway') {
+      final model = _buildScheduledJobModel(job);
+      Get.toNamed(AppRoutes.scheduleJobNavigationScreen, arguments: model);
+    } else if (status == 'inprogress') {
+      final model = _buildScheduledJobModel(job);
+      Get.toNamed(AppRoutes.scheduleJobDetailScreen, arguments: model);
+    } else {
       Get.toNamed(AppRoutes.jobDetailScreen, arguments: job);
+    }
+  }
+
+  /// Converts a raw [Jobs] API object into a [ScheduledJobModel] suitable for
+  /// the schedule-job screens (navigation, detail, etc.).
+  ScheduledJobModel _buildScheduledJobModel(Jobs job) {
+    final from = job.jobDate?.from ?? '';
+    final to = job.jobDate?.to ?? '';
+    final time = () {
+      if (from.isNotEmpty && to.isNotEmpty) {
+        return '${_formatDate(from)} – ${_formatDate(to)}';
+      }
+      if (from.isNotEmpty) return _formatDate(from);
+      return _formatDate(job.scheduledDate ?? job.serviceDate);
+    }();
+    return ScheduledJobModel(
+      time: time,
+      duration: job.estimatedTime ?? '',
+      title: job.title ?? '',
+      jobId: job.sId ?? '',
+      distance: job.location ?? '',
+      rawJobId: (job.sId ?? '').isNotEmpty ? job.sId : null,
+      lat: job.coordinates?.lat,
+      lng: job.coordinates?.lng,
+      rawJob: job,
+      status: (job.status ?? '').toLowerCase() == 'inprogress'
+          ? JobStatus.inProgress
+          : (job.status ?? '').toLowerCase() == 'ontheway'
+          ? JobStatus.onTheWay
+          : (job.status ?? '').toLowerCase() == 'completed'
+          ? JobStatus.completed
+          : JobStatus.upcoming,
+    );
+  }
 
   // ── New Jobs ──────────────────────────────────────────────────────────────────
   void onViewAllNewJobs() => _switchDashboardTab(1); // Jobs screen
+
+  Future<void> openJobsTab(JobTabType tab) async {
+    _switchDashboardTab(1);
+    await jobController.changeTab(tab, reload: true);
+  }
+
+  void openScheduleTab() {
+    _switchDashboardTab(2);
+    final scheduleController = Get.isRegistered<ScheduleJobController>()
+        ? Get.find<ScheduleJobController>()
+        : Get.put(ScheduleJobController());
+    scheduleController.selectedTab.value = 0;
+  }
 
   /// Tracks which job IDs are currently being requested from the home screen.
   final requestingJobIds = <String>{}.obs;
@@ -191,7 +275,9 @@ class TechnicianHomeController extends GetxController {
     );
   }
 
-  void onDeclineJob(Jobs job) {}
+  void onDeclineJob(Jobs job) {
+    newJobs.removeWhere((item) => item.sId == job.sId);
+  }
 
   void onViewNewJobDetails(Jobs job) {
     Get.toNamed(AppRoutes.jobDetailScreen, arguments: job);
@@ -246,9 +332,18 @@ class TechnicianHomeController extends GetxController {
     }
   }
 
-  void hitJobsApi() async {
+  Future<void> hitJobsApi() async {
     try {
-      final value = await apiRepo.getTechnicianJobsApi();
+      final location = LocationService.to;
+      final hasLocation =
+          location.latitude.value != 0.0 && location.longitude.value != 0.0;
+      final value = await apiRepo.getRecommendedJobsApi(
+        recommended: recommendedSelected.value,
+        distanceMiles: selectedDistanceMiles.value,
+        latitude: hasLocation ? location.latitude.value : null,
+        longitude: hasLocation ? location.longitude.value : null,
+        serviceTypeIds: selectedServiceTypeIds.toList(),
+      );
       jobsData = value;
 
       if (value.success != true || value.data == null) return;
@@ -260,6 +355,65 @@ class TechnicianHomeController extends GetxController {
     } catch (e) {
       AppSnackbar.error(e.toString(), title: 'Error');
     }
+  }
+
+  Future<void> hitServiceTypesApi() async {
+    try {
+      isServiceTypesLoading.value = true;
+      final value = await apiRepo.getServiceTypesApi();
+      if (value.success) {
+        serviceTypes.value = value.serviceTypes
+            .where((type) => type.isActive)
+            .toList();
+      }
+    } catch (_) {
+      // Filters remain usable even when the optional list cannot be loaded.
+    } finally {
+      isServiceTypesLoading.value = false;
+    }
+  }
+
+  Future<void> setDistanceMiles(int miles) async {
+    if (selectedDistanceMiles.value == miles) return;
+    selectedDistanceMiles.value = miles;
+    await hitJobsApi();
+  }
+
+  Future<void> resetDistanceMiles() async {
+    if (selectedDistanceMiles.value == null) return;
+    selectedDistanceMiles.value = null;
+    await hitJobsApi();
+  }
+
+  Future<void> toggleRecommended() async {
+    recommendedSelected.toggle();
+    await hitJobsApi();
+  }
+
+  Future<void> toggleServiceType(String id) async {
+    if (selectedServiceTypeIds.contains(id)) {
+      selectedServiceTypeIds.remove(id);
+    } else {
+      selectedServiceTypeIds.add(id);
+    }
+    selectedServiceTypeIds.refresh();
+    update();
+  }
+
+  void applyJobTypeFilter() async {
+    await hitJobsApi();
+    Get.back();
+    Get.back();
+  }
+
+  Future<void> clearServiceTypes() async {
+    if (selectedServiceTypeIds.isEmpty) return;
+    selectedServiceTypeIds.clear();
+    selectedServiceTypeIds.refresh();
+    update();
+
+    await hitJobsApi();
+    Get.back();
   }
 
   /// GET /api/technician/jobs?filter=today

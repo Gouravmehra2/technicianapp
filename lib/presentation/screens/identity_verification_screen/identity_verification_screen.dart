@@ -14,7 +14,7 @@ class IdentityVerificationScreen extends GetView<IdentityVerificationController>
     return MyScaffold(
       backgroundColor: const Color(0xffF6F6F6),
       appBar: AppBar(
-        backgroundColor: Colors.red,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: _BackButton(),
         title: Text(

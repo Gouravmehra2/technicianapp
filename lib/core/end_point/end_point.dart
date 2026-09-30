@@ -1,15 +1,19 @@
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String baseUrl = 'http://192.168.1.6:5001';
-  static const String socketUrl = 'http://192.168.1.6:5001';
+  static const String baseUrl = 'http://192.168.1.24:5001';
+  static const String socketUrl = 'http://192.168.1.24:5001';
+
+  //Live Url
+  // static const String baseUrl = 'http://52.52.223.128:5001';
+  // static const String socketUrl = 'http://52.52.223.128:5001';
 
   // =========================
   // Auth
   // =========================
 
   static const String login = '/api/technician-auth/login';
-  static const String logout = '/auth/logout';
+  static const String logout = '/api/auth/logout';
   static const String refreshToken = '/auth/refresh-token';
 
   // =========================
@@ -23,14 +27,6 @@ class ApiEndpoints {
   static const String completeProfile = '/api/technician-auth/complete-profile';
   static const String bankDetails = '/api/technician-auth/bank-details';
   static const String me = '/api/technician-auth/me';
-
-  // =========================
-  // FCM / Device Token
-  // =========================
-
-  /// PATCH /api/technician-auth/fcm-token
-  /// Body: `{ "fcmToken": "<token>", "platform": "android" | "ios" }`
-  static const String updateFcmToken = '/api/technician-auth/fcm-token';
 
   // =========================
   // User
@@ -52,6 +48,7 @@ class ApiEndpoints {
 
   static const String technicianDashboard = '/api/technician/dashboard';
   static const String technicianJobs = '/api/technician/jobs';
+  static const String serviceTypes = '/api/service-types';
 
   /// GET /api/technician/requests
   static const String myRequests = '/api/technician/requests';
@@ -80,6 +77,11 @@ class ApiEndpoints {
   /// PATCH /api/technician/jobs/:jobId/complete
   static String markCompleted(String jobId) {
     return '/api/technician/jobs/$jobId/complete';
+  }
+
+  /// PATCH /api/technician/jobs/:jobId/tasks/:taskIndex/complete
+  static String completeTask(String jobId, int taskIndex) {
+    return '/api/technician/jobs/$jobId/tasks/$taskIndex/complete';
   }
 
   /// GET /api/technician/conversation/:requestId
@@ -163,9 +165,34 @@ class ApiEndpoints {
     return '/api/technician/requests/$requestId/messages';
   }
 
+  // =========================
+  // Chat support
+  // =========================
+
+  static String chatMessages(String technicianId) {
+    return '/api/chat/conversations/$technicianId/messages';
+  }
+
+  static String chatRead(String technicianId) {
+    return '/api/chat/conversations/$technicianId/read';
+  }
+
   /// POST /api/technician/requests/:requestId/counter-offer
   /// Body: { "amount": 220, "message": "optional message" }
   static String sendCounterOffer(String requestId) {
     return '/api/technician/requests/$requestId/counter-offer';
   }
+
+  /// PATCH /api/technician/requests/:requestId/respond
+  static String respondToRequest(String requestId) {
+    return '/api/technician/requests/$requestId/respond';
+  }
+
+  // =========================
+  // Routes
+  // =========================
+
+  /// POST /api/routes/directions
+  /// Body: { "origin": { "lat", "lng" }, "destination": { "lat", "lng" } }
+  static const String directions = '/api/routes/directions';
 }
